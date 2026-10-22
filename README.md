@@ -41,7 +41,7 @@
 
 Most vector tools are either a browser tab tied to an account or a large suite. VectorStudio is a small editor that opens instantly, keeps your work on your machine, and exports files that look exactly like the page you drew.
 
-It started as a WebKitGTK app that ran at 12 fps on an Intel Arc laptop GPU. The shell was moved to Electron, which runs natively on Wayland: on the same machine (Core Ultra 7 155H) the editor now holds the display's 120 Hz with 60 shapes on the page.
+It started as a WebKitGTK app that ran at 12 fps on a NUC 14 mini PC (Core Ultra 7 155H, Intel Arc iGPU). The shell was moved to Electron, which runs natively on Wayland: on the same machine the editor now holds the display's 120 Hz with 60 shapes on the page.
 
 ## Features
 
@@ -51,7 +51,7 @@ It started as a WebKitGTK app that ran at 12 fps on an Intel Arc laptop GPU. The
 - **Properties:** position, size, rotation, corner radius, fill, stroke, opacity, alignment to the page, and stacking order. Every change can be undone.
 - **Export:** SVG that keeps rotation, corner radius and text, and PNG at 2× of the page only, without selection handles.
 - **Files:** autosave on your machine, plus Open, Save and Save as for `.json` design files. In the desktop app Save writes back to the file you opened.
-- **SVG import:** Open also takes `.svg` files and turns them into editable layers: rectangles, circles and ellipses stay shapes; paths (including arcs and curves), polygons and lines become editable paths, with holes kept; text, groups, transforms, `<use>` and simple CSS classes are applied, and linear and radial gradient fills stay gradients (they export back to SVG as gradients too). An imported SVG opens as a new design, so Save never writes over the original file.
+- **SVG import:** Open also takes `.svg` files and turns them into editable layers: rectangles, circles and ellipses stay shapes; paths (including arcs and curves), polygons and lines become editable paths, with holes kept; text stays text; groups are flattened into separate layers; transforms, `<use>` and simple CSS classes are applied; and linear and radial gradient fills stay gradients (they export back to SVG as gradients too). An imported SVG opens as a new design, so Save never writes over the original file.
   Not carried over: patterns and gradient strokes (each becomes one colour), images, filters, masks, clipping paths and fonts other than the system UI font. Gradients can't be edited yet: picking a colour replaces one with a solid fill.
 - **Page presets:** 1920 × 1080, 1200 × 800, 1080 × 1080, 1080 × 1920 and 800 × 1200, with any background colour.
 - **Preview effects:** bloom, chromatic aberration, film grain and vignette, drawn with WebGL. They are only for the screen and never change exports.
