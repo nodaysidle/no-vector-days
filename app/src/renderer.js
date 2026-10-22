@@ -4,11 +4,37 @@
  * Everything is redrawn per frame, so keep per-frame work cheap: no shadowBlur or filters.
  */
 
+import { isGradient, solidColor } from './paint.js';
+
 const WORKSPACE = '#1b1c1f';
 const ACCENT = '#3d8bfd'; // selection, handles, pen
 const GUIDE = '#f2545b'; // smart guides, distinct from selection
 const LABEL = '#8b8f98';
 const UI_FONT = 'system-ui, sans-serif';
+
+let colorProbe = null;
+/** CSS colour + opacity → a colour string canvas accepts in addColorStop. */
+function withAlpha(color, opacity) {
+  if (opacity === undefined || opacity >= 1) return color;
+  colorProbe ??= document.createElement('canvas').getContext('2d');
+  colorProbe.fillStyle = '#000000';
+  colorProbe.fillStyle = color;
+  const c = colorProbe.fillStyle; // normalised to #rrggbb or rgba(...)
+  const alpha = Math.max(0, opacity);
+  if (c.startsWith('#')) return `rgba(${parseInt(c.slice(1, 3), 16)}, ${parseInt(c.slice(3, 5), 16)}, ${parseInt(c.slice(5, 7), 16)}, ${alpha})`;
+  return c.replace(/rgba?\(([^,]+),([^,]+),([^,)]+)(,[^)]*)?\)/, (_m, r, g, b, a) => `rgba(${r},${g},${b},${alpha * (a ? parseFloat(a.slice(1)) : 1)})`);
+}
+
+function addStops(gradient, stops) {
+  for (const stop of stops) {
+    try {
+      gradient.addColorStop(Math.min(1, Math.max(0, stop.offset)), withAlpha(stop.color, stop.opacity));
+    } catch {
+      // An unparsable stop colour is skipped rather than breaking the whole frame.
+    }
+  }
+  return gradient;
+}
 
 export class CanvasRenderer {
   static render(
@@ -122,7 +148,6 @@ export class CanvasRenderer {
     if (el.rotation) ctx.rotate(el.rotation);
     ctx.translate(-cx, -cy);
 
-    ctx.fillStyle = el.fill || '#d0d4db';
     ctx.strokeStyle = el.stroke || 'transparent';
     ctx.lineWidth = el.strokeWidth || 0;
 
@@ -132,7 +157,7 @@ export class CanvasRenderer {
     if (el.type === 'circle') {
       ctx.beginPath();
       ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2);
-      ctx.fill();
+      this.fillShape(ctx, el, '#d0d4db');
       if (el.strokeWidth > 0) ctx.stroke();
     } else if (el.type === 'triangle') {
       ctx.beginPath();
@@ -140,17 +165,17 @@ export class CanvasRenderer {
       ctx.lineTo(el.x + w, el.y + h);
       ctx.lineTo(el.x, el.y + h);
       ctx.closePath();
-      ctx.fill();
+      this.fillShape(ctx, el, '#d0d4db');
       if (el.strokeWidth > 0) ctx.stroke();
     } else if (el.type === 'star') {
       this.drawStarShape(ctx, cx, cy, 5, w / 2, w / 4);
-      ctx.fill();
+      this.fillShape(ctx, el, '#d0d4db');
       if (el.strokeWidth > 0) ctx.stroke();
     } else if (el.type === 'line' || el.type === 'arrow') {
       ctx.beginPath();
       ctx.moveTo(el.x, cy);
       ctx.lineTo(el.x + w, cy);
-      ctx.strokeStyle = el.stroke || el.fill || '#1f2328';
+      ctx.strokeStyle = el.stroke || solidColor(el.fill, '#1f2328');
       ctx.lineWidth = Math.max(2, el.strokeWidth || 3);
       ctx.lineCap = 'round';
       ctx.stroke();
@@ -168,7 +193,7 @@ export class CanvasRenderer {
     } else if (el.type === 'text') {
       const weight = el.fontWeight || (el.fontSize > 24 ? '700' : '500');
       ctx.font = `${weight} ${el.fontSize || 20}px ${UI_FONT}`;
-      ctx.fillStyle = el.fill || '#1f2328';
+      ctx.fillStyle = this.paintFor(ctx, el, '#1f2328');
       ctx.textBaseline = 'top';
 
       // Support multi-line text
@@ -182,7 +207,7 @@ export class CanvasRenderer {
       const radius = Math.min(el.radius ?? 0, w / 2, h / 2);
       ctx.beginPath();
       ctx.roundRect(el.x, el.y, w, h, radius);
-      ctx.fill();
+      this.fillShape(ctx, el, '#d0d4db');
       if (el.strokeWidth > 0) ctx.stroke();
     }
 
@@ -210,6 +235,45 @@ export class CanvasRenderer {
     ctx.closePath();
   }
 
+  /**
+   * Fills the current path with el.fill. Gradients are placed in the element's box; a radial
+   * gradient is drawn in a scaled space so it can be elliptical like SVG's.
+   */
+  static fillShape(ctx, el, fallback, rule = 'nonzero') {
+    const fill = el.fill;
+    if (!isGradient(fill)) {
+      ctx.fillStyle = fill || fallback;
+      ctx.fill(rule);
+      return;
+    }
+    const { x, y, width: w, height: h } = el;
+    if (fill.type === 'radial') {
+      const rx = Math.max(fill.rx, 1e-6);
+      const ry = Math.max(fill.ry, 1e-6);
+      ctx.save();
+      ctx.translate(x + fill.cx * w, y + fill.cy * h);
+      ctx.scale(Math.max(rx * w, 1e-6), Math.max(ry * h, 1e-6));
+      ctx.fillStyle = addStops(ctx.createRadialGradient((fill.fx - fill.cx) / rx, (fill.fy - fill.cy) / ry, 0, 0, 0, 1), fill.stops);
+      ctx.fill(rule);
+      ctx.restore();
+      return;
+    }
+    ctx.fillStyle = this.paintFor(ctx, el, fallback);
+    ctx.fill(rule);
+  }
+
+  /** A fillStyle without changing the transform (used for text); radial gradients become circular here. */
+  static paintFor(ctx, el, fallback) {
+    const fill = el.fill;
+    if (!isGradient(fill)) return fill || fallback;
+    const { x, y, width: w, height: h } = el;
+    if (fill.type === 'linear') {
+      return addStops(ctx.createLinearGradient(x + fill.x1 * w, y + fill.y1 * h, x + fill.x2 * w, y + fill.y2 * h), fill.stops);
+    }
+    const r = Math.sqrt(Math.max(fill.rx * w * fill.ry * h, 0));
+    return addStops(ctx.createRadialGradient(x + fill.fx * w, y + fill.fy * h, 0, x + fill.cx * w, y + fill.cy * h, Math.max(r, 1e-6)), fill.stops);
+  }
+
   static drawPathElement(ctx, el) {
     if (!el.anchors || el.anchors.length < 2) return;
 
@@ -235,8 +299,7 @@ export class CanvasRenderer {
     }
 
     if (el.fill && el.fill !== 'transparent' && el.closed) {
-      ctx.fillStyle = el.fill;
-      ctx.fill(el.fillRule || 'nonzero');
+      this.fillShape(ctx, el, 'transparent', el.fillRule || 'nonzero');
     }
 
     if (el.stroke && el.stroke !== 'transparent') {

@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/nodaysidle/no-vector-days/releases/download/v0.2.0/VectorStudio-0.2.0-x86_64.AppImage"><strong>Download Linux AppImage (v0.2.0)</strong></a>
+  <a href="https://github.com/nodaysidle/no-vector-days/releases/download/v0.3.0/VectorStudio-0.3.0-x86_64.AppImage"><strong>Download Linux AppImage (v0.3.0)</strong></a>
   ·
   <a href="https://github.com/nodaysidle/no-vector-days/releases">All Releases</a>
 </p>
@@ -51,8 +51,8 @@ It started as a WebKitGTK app that ran at 12 fps on an Intel Arc laptop GPU. The
 - **Properties:** position, size, rotation, corner radius, fill, stroke, opacity, alignment to the page, and stacking order. Every change can be undone.
 - **Export:** SVG that keeps rotation, corner radius and text, and PNG at 2× of the page only, without selection handles.
 - **Files:** autosave on your machine, plus Open, Save and Save as for `.json` design files. In the desktop app Save writes back to the file you opened.
-- **SVG import:** Open also takes `.svg` files and turns them into editable layers: rectangles, circles and ellipses stay shapes; paths (including arcs and curves), polygons and lines become editable paths, with holes kept; text, groups, transforms, `<use>` and simple CSS classes are applied. An imported SVG opens as a new design, so Save never writes over the original file.
-  Not carried over: gradients and patterns (each becomes its first colour), images, filters, masks, clipping paths and fonts other than the system UI font.
+- **SVG import:** Open also takes `.svg` files and turns them into editable layers: rectangles, circles and ellipses stay shapes; paths (including arcs and curves), polygons and lines become editable paths, with holes kept; text, groups, transforms, `<use>` and simple CSS classes are applied, and linear and radial gradient fills stay gradients (they export back to SVG as gradients too). An imported SVG opens as a new design, so Save never writes over the original file.
+  Not carried over: patterns and gradient strokes (each becomes one colour), images, filters, masks, clipping paths and fonts other than the system UI font. Gradients can't be edited yet: picking a colour replaces one with a solid fill.
 - **Page presets:** 1920 × 1080, 1200 × 800, 1080 × 1080, 1080 × 1920 and 800 × 1200, with any background colour.
 - **Preview effects:** bloom, chromatic aberration, film grain and vignette, drawn with WebGL. They are only for the screen and never change exports.
 
@@ -75,8 +75,8 @@ It started as a WebKitGTK app that ran at 12 fps on an Intel Arc laptop GPU. The
 ### AppImage
 
 ```bash
-chmod +x VectorStudio-0.2.0-x86_64.AppImage
-./VectorStudio-0.2.0-x86_64.AppImage
+chmod +x VectorStudio-0.3.0-x86_64.AppImage
+./VectorStudio-0.3.0-x86_64.AppImage
 ```
 
 AppImages need FUSE 2 (`fuse2` on Arch). Without it, run with `APPIMAGE_EXTRACT_AND_RUN=1`.

@@ -15,6 +15,7 @@ import { History } from './history.js';
 import { CanvasRenderer } from './renderer.js';
 import { VectorPath } from './path.js';
 import { WebGLShaderPipeline } from './webgl-pipeline.js';
+import { solidColor } from './paint.js';
 
 // Tools that place one element of their type where the canvas is clicked.
 export const SHAPE_TOOLS = { RECT: 'rect', CIRCLE: 'circle', TRIANGLE: 'triangle', STAR: 'star', LINE: 'line', ARROW: 'arrow', TEXT: 'text' };
@@ -276,7 +277,7 @@ export class CanvasEngine {
     textarea.style.minWidth = `${Math.max(160, textEl.width * this.camera.zoom)}px`;
     textarea.style.minHeight = `${Math.max(48, textEl.height * this.camera.zoom)}px`;
     textarea.style.fontSize = `${(textEl.fontSize || 24) * this.camera.zoom}px`;
-    textarea.style.color = textEl.fill || '#1f2328';
+    textarea.style.color = solidColor(textEl.fill, '#1f2328');
     textarea.style.fontFamily = 'system-ui, sans-serif';
     textarea.style.fontWeight = textEl.fontWeight || (textEl.fontSize > 24 ? '700' : '500');
     textarea.style.background = this.scene.artboard.background || '#ffffff';

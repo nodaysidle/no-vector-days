@@ -4,6 +4,8 @@
  * The page centre is the world origin, so coordinates are shifted by the viewBox centre.
  */
 
+import { VectorPath } from './path.js';
+
 const KAPPA = 0.5522847498;
 const INHERITED = ['fill', 'fill-rule', 'stroke', 'stroke-width', 'fill-opacity', 'stroke-opacity', 'font-size', 'font-weight', 'visibility', 'color', 'dominant-baseline'];
 const SKIP = new Set(['defs', 'clipPath', 'mask', 'symbol', 'marker', 'pattern', 'filter', 'linearGradient', 'radialGradient', 'style', 'title', 'desc', 'metadata', 'script']);
@@ -330,7 +332,8 @@ export function importSVG(doc) {
     if (value === 'currentColor') return style.color || '#000000';
     const ref = /^url\(\s*['"]?#([^'")]+)['"]?\s*\)/.exec(value);
     if (ref) {
-      // Gradients become their first stop colour; stops may live on a gradient this one links to.
+      // Flat stand-in (kept for strokes); fills are upgraded to real gradients in addElement.
+      // Stops may live on a gradient this one links to.
       let grad = byId(ref[1]);
       for (let hops = 0; grad && grad.localName !== 'pattern' && !grad.getElementsByTagName('stop').length && hops < 5; hops++) {
         const link = hrefOf(grad);
@@ -348,6 +351,92 @@ export function importSVG(doc) {
     }
     return value;
   };
+
+  /** The gradient a fill references, following href links for inherited attributes and stops. */
+  function gradientChain(value) {
+    const ref = /^url\(\s*['"]?#([^'")]+)['"]?\s*\)/.exec(value || '');
+    const chain = [];
+    for (let node = ref && byId(ref[1]); node && chain.length < 6; ) {
+      chain.push(node);
+      const link = hrefOf(node);
+      node = link && link[0] === '#' ? byId(link.slice(1)) : null;
+    }
+    const kind = chain[0]?.localName;
+    return kind === 'linearGradient' || kind === 'radialGradient' ? chain : null;
+  }
+
+  /**
+   * Converts an SVG gradient into the editor's form: geometry as fractions of the final element
+   * box in its unrotated frame. box is the source shape's bounding box in its own user space
+   * (for objectBoundingBox units), m the shape's full transform, el the element as built.
+   */
+  function gradientFor(chain, box, m, el) {
+    const attrOf = (name) => chain.find(node => node.hasAttribute(name))?.getAttribute(name) ?? null;
+    const stopHolder = chain.find(node => node.getElementsByTagName('stop').length);
+    if (!stopHolder) return null;
+    let last = 0;
+    const stops = [...stopHolder.getElementsByTagName('stop')].map(stop => {
+      const css = parseDeclarations(stop.getAttribute('style'));
+      const off = stop.getAttribute('offset') || '0';
+      last = Math.max(last, Math.min(1, Math.max(0, off.trim().endsWith('%') ? parseFloat(off) / 100 : num(off))));
+      const opacity = num(css['stop-opacity'] ?? stop.getAttribute('stop-opacity'), 1);
+      const color = css['stop-color'] || stop.getAttribute('stop-color') || '#000000';
+      return { offset: last, color: color === 'currentColor' ? '#000000' : color, ...(opacity < 1 ? { opacity } : {}) };
+    });
+
+    const userSpace = attrOf('gradientUnits') === 'userSpaceOnUse';
+    // Percentages are of the box (objectBoundingBox) or of the page (userSpaceOnUse).
+    const val = (name, fallback, ref) => {
+      const v = attrOf(name);
+      if (v === null) return fallback;
+      return v.trim().endsWith('%') ? (parseFloat(v) / 100) * (userSpace ? ref : 1) : num(v, fallback);
+    };
+    const toShape = userSpace ? IDENTITY : [box.w, 0, 0, box.h, box.x, box.y];
+    const full = multiply(m, multiply(toShape, parseTransform(attrOf('gradientTransform'))));
+    const cxEl = el.x + el.width / 2;
+    const cyEl = el.y + el.height / 2;
+    const cos = Math.cos(-(el.rotation || 0));
+    const sin = Math.sin(-(el.rotation || 0));
+    const local = (p) => {
+      const w = apply(full, p);
+      const dx = w.x - cxEl;
+      const dy = w.y - cyEl;
+      return { x: cxEl + dx * cos - dy * sin, y: cyEl + dx * sin + dy * cos };
+    };
+    const fx = (p) => (p.x - el.x) / el.width;
+    const fy = (p) => (p.y - el.y) / el.height;
+    const W = userSpace ? width : 1;
+    const H = userSpace ? height : 1;
+
+    if (chain[0].localName === 'linearGradient') {
+      const a = local({ x: val('x1', 0, W), y: val('y1', 0, H) });
+      const b = local({ x: val('x2', userSpace ? W : 1, W), y: val('y2', 0, H) });
+      return { type: 'linear', x1: fx(a), y1: fy(a), x2: fx(b), y2: fy(b), stops };
+    }
+    const diag = Math.sqrt((W * W + H * H) / 2);
+    const cx = val('cx', userSpace ? W / 2 : 0.5, W);
+    const cy = val('cy', userSpace ? H / 2 : 0.5, H);
+    const r = val('r', userSpace ? diag / 2 : 0.5, diag);
+    const c = local({ x: cx, y: cy });
+    const f = local({ x: val('fx', cx, W), y: val('fy', cy, H) });
+    const ax = local({ x: cx + r, y: cy });
+    const ay = local({ x: cx, y: cy + r });
+    // shortcut: a rotated elliptical gradient keeps its extent along x and y but loses its tilt.
+    const rx = Math.hypot(ax.x - c.x, ay.x - c.x) / el.width;
+    const ry = Math.hypot(ax.y - c.y, ay.y - c.y) / el.height;
+    return { type: 'radial', cx: fx(c), cy: fy(c), rx, ry, fx: fx(f), fy: fy(f), stops };
+  }
+
+  /** Adds an element; a gradient fill is converted once the element's box is known. */
+  function addElement(el, style, box, m) {
+    const chain = el.fill !== 'transparent' && gradientChain(style.fill);
+    if (chain) {
+      const frame = el.type === 'path' ? new VectorPath(el) : el;
+      const gradient = gradientFor(chain, box, m, { x: frame.x, y: frame.y, width: frame.width, height: frame.height, rotation: el.rotation || 0 });
+      if (gradient) el.fill = gradient;
+    }
+    elements.push(el);
+  }
 
   function paintProps(style, m, opacity) {
     const fill = paint(style.fill ?? '#000000', style);
@@ -373,12 +462,12 @@ export function importSVG(doc) {
       .filter(o => o.anchors.length >= 2);
     if (!outlines.length) return;
     const [main, ...rest] = outlines;
-    elements.push({
+    addElement({
       type: 'path', anchors: main.anchors, closed: main.closed,
       ...(rest.length ? { subpaths: rest } : {}),
       ...(style['fill-rule'] === 'evenodd' ? { fillRule: 'evenodd' } : {}),
       ...props, strokeWidth: props.strokeWidth || 2
-    });
+    }, style, subpathBox(subpaths), m);
   }
 
   /** rect/ellipse keep their type when m is rotation + positive scale (no skew, no mirror). */
@@ -395,12 +484,12 @@ export function importSVG(doc) {
     const c = apply(m, { x: x + w / 2, y: y + h / 2 });
     const W = w * sx;
     const H = h * sy;
-    elements.push({
+    addElement({
       type, x: c.x - W / 2, y: c.y - H / 2, width: W, height: H,
       rotation: Math.atan2(m[1], m[0]),
       ...(type === 'rect' ? { radius: rx * sx } : {}),
       ...paintProps(style, m, opacity)
-    });
+    }, style, { x, y, w, h }, m);
   }
 
   function pushText(node, style, m, opacity) {
@@ -423,13 +512,14 @@ export function importSVG(doc) {
     // The editor draws text from its top edge; SVG text sits on its baseline by default.
     const top = apply(m, { x, y: hanging ? y : y - size * 0.8 });
     const weight = style['font-weight'] === 'bold' ? '700' : style['font-weight'];
-    elements.push({
+    const longest = Math.max(...lines.map(l => l.length));
+    addElement({
       type: 'text', x: top.x, y: top.y,
-      width: Math.max(...lines.map(l => l.length)) * fontSize * 0.55, height: lines.length * fontSize * 1.25,
+      width: longest * fontSize * 0.55, height: lines.length * fontSize * 1.25,
       rotation: Math.atan2(m[1], m[0]),
       text: lines.join('\n'), fontSize, ...(weight ? { fontWeight: weight } : {}),
       ...paintProps(style, m, opacity), strokeWidth: 0
-    });
+    }, style, { x, y: hanging ? y : y - size * 0.8, w: longest * size * 0.55, h: lines.length * size * 1.25 }, m);
   }
 
   function walk(node, inherited, m, opacity, depth) {
@@ -527,6 +617,16 @@ export function importSVG(doc) {
     artboard.background = '#ffffff';
   }
   return { artboard, elements, skipped };
+}
+
+/** Bounding box of subpaths (anchors and control points) in their own user space. */
+function subpathBox(subpaths) {
+  const pts = subpaths.flatMap(sp => [sp.start, ...sp.segs.flatMap(seg => [seg.c1, seg.c2, seg.p])]).filter(Boolean);
+  const xs = pts.map(p => p.x);
+  const ys = pts.map(p => p.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) - x || 1, h: Math.max(...ys) - y || 1 };
 }
 
 function hrefOf(node) {

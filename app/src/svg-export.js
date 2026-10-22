@@ -2,6 +2,8 @@
  * SVG export. Geometry mirrors CanvasRenderer so the file matches what is on screen.
  */
 
+import { isGradient, solidColor } from './paint.js';
+
 const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const n = (v) => +Number(v).toFixed(2);
 
@@ -23,7 +25,34 @@ function starPoints(cx, cy, outer, inner, spikes = 5) {
   return pts.join(' ');
 }
 
-function elementToSVG(el) {
+/** Gradient fills are stored relative to the element box; SVG gets them in the element's user space. */
+function gradientDef(el, id) {
+  const f = el.fill;
+  const { x, y, width: w, height: h } = el;
+  const stops = f.stops.map(st => `<stop${attrs({
+    offset: n(st.offset),
+    'stop-color': st.color,
+    'stop-opacity': st.opacity !== undefined && st.opacity < 1 ? n(st.opacity) : undefined
+  })}/>`).join('');
+  if (f.type === 'linear') {
+    return `<linearGradient${attrs({ id, gradientUnits: 'userSpaceOnUse', x1: n(x + f.x1 * w), y1: n(y + f.y1 * h), x2: n(x + f.x2 * w), y2: n(y + f.y2 * h) })}>${stops}</linearGradient>`;
+  }
+  const rx = Math.max(f.rx, 1e-6);
+  const ry = Math.max(f.ry, 1e-6);
+  return `<radialGradient${attrs({
+    id, gradientUnits: 'userSpaceOnUse', cx: 0, cy: 0, r: 1,
+    fx: n((f.fx - f.cx) / rx), fy: n((f.fy - f.cy) / ry),
+    gradientTransform: `translate(${n(x + f.cx * w)} ${n(y + f.cy * h)}) scale(${n(rx * w)} ${n(ry * h)})`
+  })}>${stops}</radialGradient>`;
+}
+
+function elementToSVG(el, defs) {
+  let fill = el.fill;
+  if (isGradient(fill)) {
+    const id = `grad${defs.length + 1}`;
+    defs.push(gradientDef(el, id));
+    fill = `url(#${id})`;
+  }
   const common = { opacity: el.opacity !== undefined && el.opacity < 1 ? el.opacity : undefined };
 
   if (el.type === 'path') {
@@ -31,7 +60,7 @@ function elementToSVG(el) {
     const filled = el.closed && el.fill && el.fill !== 'transparent';
     return `<path${attrs({
       d: el.toSVGPath(),
-      fill: filled ? el.fill : 'none',
+      fill: filled ? fill : 'none',
       'fill-rule': el.fillRule,
       stroke: el.stroke && el.stroke !== 'transparent' ? el.stroke : undefined,
       'stroke-width': el.strokeWidth || 2,
@@ -46,7 +75,7 @@ function elementToSVG(el) {
   const cy = y + h / 2;
   const transform = el.rotation ? `rotate(${n((el.rotation * 180) / Math.PI)} ${n(cx)} ${n(cy)})` : undefined;
   const paint = {
-    fill: el.fill,
+    fill,
     stroke: el.strokeWidth > 0 ? el.stroke : undefined,
     'stroke-width': el.strokeWidth > 0 ? el.strokeWidth : undefined,
     transform,
@@ -62,7 +91,7 @@ function elementToSVG(el) {
       return `<polygon${attrs({ points: starPoints(cx, cy, w / 2, w / 4), ...paint })}/>`;
     case 'line':
     case 'arrow': {
-      const color = el.stroke || el.fill;
+      const color = el.stroke || solidColor(el.fill);
       const width = Math.max(2, el.strokeWidth || 3);
       let out = `<line${attrs({ x1: n(x), y1: n(cy), x2: n(x + w), y2: n(cy), stroke: color, 'stroke-width': width, 'stroke-linecap': 'round', transform, ...common })}/>`;
       if (el.type === 'arrow') {
@@ -80,7 +109,7 @@ function elementToSVG(el) {
         'font-size': size,
         'font-weight': el.fontWeight || (size > 24 ? '700' : '500'),
         'dominant-baseline': 'hanging',
-        fill: el.fill,
+        fill,
         transform,
         ...common
       })}>${spans}</text>`;
@@ -94,9 +123,11 @@ function elementToSVG(el) {
 
 export function sceneToSVG(scene) {
   const { width: w, height: h, background } = scene.artboard;
-  const body = scene.elements.map(elementToSVG).filter(Boolean).map(s => `  ${s}`).join('\n');
+  const defs = [];
+  const body = scene.elements.map(el => elementToSVG(el, defs)).filter(Boolean).map(s => `  ${s}`).join('\n');
+  const defsBlock = defs.length ? `  <defs>\n${defs.map(d => `    ${d}`).join('\n')}\n  </defs>\n` : '';
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${n(-w / 2)} ${n(-h / 2)} ${w} ${h}" width="${w}" height="${h}">
-  <rect${attrs({ x: n(-w / 2), y: n(-h / 2), width: w, height: h, fill: background || '#ffffff' })}/>
+${defsBlock}  <rect${attrs({ x: n(-w / 2), y: n(-h / 2), width: w, height: h, fill: background || '#ffffff' })}/>
 ${body}
 </svg>
 `;

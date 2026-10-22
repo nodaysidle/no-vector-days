@@ -193,6 +193,17 @@ assert.strictEqual(ringCopy.fillRule, 'evenodd', 'fill rule survives a JSON roun
 const ringScene = new SceneGraph();
 ringScene.addElement(ring);
 assert.ok(sceneToSVG(ringScene).includes('fill-rule="evenodd"'), 'fill rule is exported');
+const gradScene = new SceneGraph();
+gradScene.addElement({ type: 'rect', x: 0, y: 0, width: 200, height: 100, fill: { type: 'linear', x1: 0, y1: 0, x2: 1, y2: 0, stops: [{ offset: 0, color: '#ff0000' }, { offset: 1, color: '#0000ff', opacity: 0.5 }] } });
+gradScene.addElement({ type: 'circle', x: 0, y: 0, width: 100, height: 50, fill: { type: 'radial', cx: 0.5, cy: 0.5, rx: 0.5, ry: 0.5, fx: 0.5, fy: 0.5, stops: [{ offset: 0, color: '#ffffff' }, { offset: 1, color: '#000000' }] } });
+gradScene.addElement({ type: 'arrow', x: 0, y: 0, width: 100, height: 20, stroke: '', fill: { type: 'linear', x1: 0, y1: 0, x2: 1, y2: 0, stops: [{ offset: 0, color: '#00ff00' }] } });
+const gradSvg = sceneToSVG(gradScene);
+assert.ok(gradSvg.includes('<linearGradient id="grad1" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="200" y2="0">'), 'linear gradient exported in user space');
+assert.ok(gradSvg.includes('stop-opacity="0.5"'), 'stop opacity exported');
+assert.ok(gradSvg.includes('fill="url(#grad1)"') && gradSvg.includes('fill="url(#grad2)"'), 'shapes reference their gradients');
+assert.ok(gradSvg.includes('gradientTransform="translate(50 25) scale(50 25)"'), 'radial gradient keeps its ellipse');
+assert.ok(gradSvg.includes('stroke="#00ff00"'), 'lines fall back to the first stop colour');
+assert.strictEqual(JSON.parse(gradScene.toJSON()).elements[0].fill.stops.length, 2, 'gradient fills survive JSON');
 console.log('✓ SVG import helpers verified.');
 
 console.log('\nAll Canvas Core & Vector Bézier Engine tests passed successfully!\n');

@@ -125,7 +125,7 @@
 
         <div class="field" id="field-fill">
           <label for="prop-fill">Fill</label>
-          <div class="color-row"><input type="color" id="prop-fill"><span class="hex" id="prop-fill-hex"></span></div>
+          <div class="color-row"><input type="color" id="prop-fill" title="Pick a colour (replaces a gradient)"><span class="gradient-swatch" id="prop-fill-gradient" hidden></span><span class="hex" id="prop-fill-hex"></span></div>
         </div>
         <div class="field">
           <label for="prop-stroke">Stroke</label>
@@ -183,6 +183,7 @@
     import { CanvasEngine } from './src/engine.js';
     import { sceneToSVG } from './src/svg-export.js';
     import { importSVG } from './src/svg-import.js';
+    import { isGradient, solidColor } from './src/paint.js';
 
     const $ = (id) => document.getElementById(id);
     const vectorCanvas = $('vector-canvas');
@@ -368,7 +369,13 @@
     $('btn-delete').onclick = () => engine.deleteSelected();
 
     // Colour inputs only accept #rrggbb; anything else (e.g. 'transparent') shows as black but stays untouched until edited.
-    const asHex = (c) => (/^#[0-9a-f]{6}$/i.test(c || '') ? c : '#000000');
+    // The colour input only takes #rrggbb; the canvas normalises named and short colours to that.
+    const colorProbe = document.createElement('canvas').getContext('2d');
+    function asHex(c) {
+      colorProbe.fillStyle = '#000000';
+      colorProbe.fillStyle = c || '#000000';
+      return /^#[0-9a-f]{6}$/i.test(colorProbe.fillStyle) ? colorProbe.fillStyle : '#000000';
+    }
     function setValue(input, value) {
       if (document.activeElement !== input) input.value = value;
     }
@@ -399,8 +406,14 @@
       $('field-font').hidden = el.type !== 'text';
       setValue($('prop-font'), el.fontSize ?? 20);
       $('field-fill').hidden = isLine;
-      setValue($('prop-fill'), asHex(el.fill));
-      $('prop-fill-hex').textContent = el.fill || 'none';
+      setValue($('prop-fill'), asHex(solidColor(el.fill)));
+      const gradient = isGradient(el.fill);
+      $('prop-fill-gradient').hidden = !gradient;
+      if (gradient) {
+        const stops = el.fill.stops.map(st => `${st.color} ${Math.round(st.offset * 100)}%`).join(', ');
+        $('prop-fill-gradient').style.background = el.fill.type === 'linear' ? `linear-gradient(90deg, ${stops})` : `radial-gradient(circle, ${stops})`;
+      }
+      $('prop-fill-hex').textContent = gradient ? `${el.fill.type === 'linear' ? 'Linear' : 'Radial'} gradient` : el.fill || 'none';
       setValue($('prop-stroke'), asHex(el.stroke));
       $('prop-stroke-hex').textContent = el.stroke || 'none';
       setValue($('prop-stroke-w'), el.strokeWidth ?? 0);
@@ -409,7 +422,10 @@
       $('prop-opacity-out').textContent = `${opacity}%`;
     }
     $('prop-opacity').addEventListener('input', (e) => { $('prop-opacity-out').textContent = `${e.target.value}%`; });
-    $('prop-fill').addEventListener('input', (e) => { $('prop-fill-hex').textContent = e.target.value; });
+    $('prop-fill').addEventListener('input', (e) => {
+      $('prop-fill-hex').textContent = e.target.value;
+      $('prop-fill-gradient').hidden = true;
+    });
     $('prop-stroke').addEventListener('input', (e) => { $('prop-stroke-hex').textContent = e.target.value; });
 
     // ── Layers ──────────────────────────────────────────────────

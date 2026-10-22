@@ -53,7 +53,8 @@ export class Camera {
     const availH = Math.max(100, screenHeight - padding * 2);
     const scaleX = availW / artboard.width;
     const scaleY = availH / artboard.height;
-    const targetZoom = Math.min(scaleX, scaleY, 2.0);
+    // Small pages (icons) zoom in up to 1600% so they are workable.
+    const targetZoom = Math.min(scaleX, scaleY, 16);
 
     this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, targetZoom));
     // Center the artboard (artboard is from -w/2, -h/2 to +w/2, +h/2)

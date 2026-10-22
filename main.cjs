@@ -123,15 +123,22 @@ const SMOKE_TEST_JS = `(async function () {
   const f = foreign.elements;
   const svgForeign = foreign.artboard.width === 100 && f.length === 5 && foreign.skipped.image === 1 &&
     f[0].type === 'rect' && close(f[0].x, -10) && f[0].fill === '#ff0000' &&
-    f[1].type === 'circle' && f[1].fill === '#00ff00' && close(f[1].x, -45) &&
+    f[1].type === 'circle' && f[1].fill.type === 'linear' && f[1].fill.stops[0].color === '#00ff00' && close(f[1].x, -45) &&
     f[2].type === 'path' && f[2].fill === 'blue' && f[2].closed && close(f[2].anchors[0].x, 30) &&
     f[3].type === 'path' && !f[3].closed && f[3].fill === 'transparent' && f[3].stroke === 'black' &&
     f[4].type === 'path' && f[4].anchors.length === 4;
+  // Gradients: export → import keeps type, geometry and stops (in element-box fractions).
+  const grad = new SceneGraph();
+  grad.addElement({ type: 'rect', x: -100, y: -50, width: 200, height: 100, rotation: 0.4, fill: { type: 'linear', x1: 0.1, y1: 0.2, x2: 0.9, y2: 0.7, stops: [{ offset: 0, color: '#ff0000' }, { offset: 1, color: '#0000ff', opacity: 0.5 }] } });
+  grad.addElement({ type: 'circle', x: 0, y: 0, width: 120, height: 60, fill: { type: 'radial', cx: 0.4, cy: 0.5, rx: 0.6, ry: 0.3, fx: 0.3, fy: 0.5, stops: [{ offset: 0, color: '#ffffff' }, { offset: 1, color: '#000000' }] } });
+  const [gl, gr] = parse(sceneToSVG(grad)).elements;
+  const svgGradients = gl.fill.type === 'linear' && close(gl.fill.x1, 0.1) && close(gl.fill.y2, 0.7) && gl.fill.stops[1].opacity === 0.5 &&
+    gr.fill.type === 'radial' && close(gr.fill.cx, 0.4) && close(gr.fill.rx, 0.6) && close(gr.fill.ry, 0.3) && close(gr.fill.fx, 0.3);
   E.loadJSON(JSON.stringify(foreign));
   const svgLoaded = E.scene.elements.length === 5;
 
-  const ok = added && undone && resized && resizeUndone && cleaned && rotSnapped && toolKept && multiDrag && multiDragUndone && multiDup && deleteOrderKept && desktopBridge && svgRoundTrip && svgForeign && svgLoaded;
-  return { ok, desktopBridge, svgRoundTrip, svgForeign, svgLoaded, added, undone, resized, resizeUndone, cleaned, rotSnapped, toolKept, multiDrag, multiDragUndone, multiDup, deleteOrderKept, webgl: !!E.webglPipeline };
+  const ok = added && undone && resized && resizeUndone && cleaned && rotSnapped && toolKept && multiDrag && multiDragUndone && multiDup && deleteOrderKept && desktopBridge && svgRoundTrip && svgForeign && svgGradients && svgLoaded;
+  return { ok, desktopBridge, svgRoundTrip, svgForeign, svgGradients, svgLoaded, added, undone, resized, resizeUndone, cleaned, rotSnapped, toolKept, multiDrag, multiDragUndone, multiDup, deleteOrderKept, webgl: !!E.webglPipeline };
 })()`;
 
 // Seeds a known scene and reports "probe:<layers>:<tool>:<selected>" in the title after each key release.
