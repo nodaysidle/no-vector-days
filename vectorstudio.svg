@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#202328"/>
+      <stop offset="1" stop-color="#090a0c"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#bg)"/>
+  <rect x="16.5" y="16.5" width="479" height="479" rx="107.5" fill="none" stroke="#ffffff" stroke-opacity=".09"/>
+  <!-- one Bézier segment with its two handles: the pen tool is the core of the editor -->
+  <g stroke="#8b8f98" stroke-width="10" stroke-linecap="round">
+    <line x1="140" y1="368" x2="140" y2="196"/>
+    <line x1="372" y1="144" x2="372" y2="316"/>
+  </g>
+  <circle cx="140" cy="196" r="18" fill="#8b8f98"/>
+  <circle cx="372" cy="316" r="18" fill="#8b8f98"/>
+  <path d="M140 368 C140 196 372 316 372 144" fill="none" stroke="#e4e5e8" stroke-width="30" stroke-linecap="round"/>
+  <rect x="114" y="342" width="52" height="52" rx="6" fill="#3d8bfd"/>
+  <rect x="346" y="118" width="52" height="52" rx="6" fill="#3d8bfd"/>
+</svg>

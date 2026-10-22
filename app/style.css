@@ -1,0 +1,217 @@
+/*
+ * VectorStudio UI. Dark neutral chrome so the page colours are the only colour on screen;
+ * one blue accent marks the active tool, selection, focus, and the primary action.
+ */
+:root {
+  --bg: #1b1c1f;          /* workspace, matches renderer WORKSPACE */
+  --panel: #232428;
+  --panel-raised: #2c2d32;
+  --border: #34363c;
+  --text: #e4e5e8;
+  --text-muted: #9a9ca3;
+  --accent: #3d8bfd;
+  --accent-text: #ffffff;
+  --danger: #f2545b;
+  --radius: 4px;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font: 12px/1.4 var(--font);
+  user-select: none;
+}
+
+button, input, select { font: inherit; color: inherit; }
+
+.icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-raised);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) { background: #36383e; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.btn-primary:hover:not(:disabled) { background: #5599ff; }
+.btn-danger:hover:not(:disabled) { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn.small { height: 22px; padding: 0 8px; }
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.icon-btn:hover:not(:disabled) { background: var(--panel-raised); color: var(--text); }
+.icon-btn.small { width: 22px; height: 22px; }
+.icon-btn.small .icon { width: 14px; height: 14px; }
+
+button:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Top bar ─────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 44px;
+  padding: 0 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.app-name { font-weight: 600; font-size: 13px; }
+.topbar .group { display: flex; align-items: center; gap: 4px; }
+.autosave { color: var(--text-muted); }
+.spacer { flex: 1; }
+
+/* ── Workspace layout ────────────────────────────────────── */
+.workspace {
+  display: grid;
+  grid-template-columns: 44px 220px 1fr 248px;
+  height: calc(100vh - 44px - 26px);
+}
+
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+}
+.toolbar .sep { width: 24px; height: 1px; margin: 4px 0; background: var(--border); }
+.tool {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.tool:hover { background: var(--panel-raised); color: var(--text); }
+.tool.active { background: var(--accent); color: var(--accent-text); }
+
+.panel {
+  overflow-y: auto;
+  background: var(--panel);
+  padding: 12px;
+}
+.layers-panel { border-right: 1px solid var(--border); }
+.props-panel { border-left: 1px solid var(--border); }
+.panel-title { font-size: 12px; font-weight: 600; margin-bottom: 10px; }
+.panel section + section { margin-top: 20px; }
+
+/* ── Layers ──────────────────────────────────────────────── */
+.layers { display: flex; flex-direction: column; gap: 1px; margin: 0 -6px; }
+.layer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.layer .icon { width: 14px; height: 14px; color: var(--text-muted); }
+.layer span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.layer:hover { background: var(--panel-raised); }
+.layer.selected { background: rgba(61, 139, 253, 0.18); }
+.layer.selected .icon { color: var(--accent); }
+.empty { padding: 0 6px; color: var(--text-muted); line-height: 1.5; }
+
+/* ── Properties ──────────────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.field label, .field .label { color: var(--text-muted); }
+.field[hidden], section[hidden] { display: none; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; }
+.grid2.tight { gap: 6px; margin-bottom: 12px; }
+
+input[type="number"], select {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+input[type="number"]:hover, select:hover { border-color: #4a4d55; }
+input[type="number"]:focus, select:focus { border-color: var(--accent); outline: none; }
+input:disabled { opacity: 0.4; }
+
+.color-row, .range-row { display: flex; align-items: center; gap: 8px; }
+.color-row input[type="number"] { width: 64px; margin-left: auto; }
+.hex { font-variant-numeric: tabular-nums; color: var(--text); }
+
+input[type="color"] {
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  cursor: pointer;
+}
+input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 2px; }
+
+input[type="range"] { flex: 1; accent-color: var(--accent); }
+output { width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.btn-row { display: flex; gap: 2px; }
+.note { color: var(--text-muted); }
+
+/* ── Canvas viewport ─────────────────────────────────────── */
+.viewport { position: relative; overflow: hidden; background: var(--bg); }
+#vector-canvas, #gl-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#vector-canvas { touch-action: none; }
+#gl-canvas { pointer-events: none; display: none; }
+
+/* ── Status bar ──────────────────────────────────────────── */
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 26px;
+  padding: 0 8px 0 12px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zoom { display: flex; align-items: center; gap: 2px; }
+.zoom-label { width: 44px; text-align: center; font-variant-numeric: tabular-nums; color: var(--text); }

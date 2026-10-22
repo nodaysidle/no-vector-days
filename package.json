@@ -1,0 +1,34 @@
+{
+  "name": "vectorstudio",
+  "productName": "VectorStudio",
+  "version": "0.1.0",
+  "description": "Desktop vector editor for Linux: shapes, Bézier pen, layers, SVG and PNG export",
+  "main": "main.cjs",
+  "private": true,
+  "author": "NODAYSIDLE <nodaysidle@tutanota.de>",
+  "license": "MIT",
+  "homepage": "https://github.com/nodaysidle/no-vector-days",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/canvas_test.js",
+    "test:desktop": "python3 test/test_wayland_app.py && python3 test/test_wayland_keys.py",
+    "dist": "electron-builder --linux AppImage"
+  },
+  "devDependencies": {
+    "electron": "43.8.3",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.nodaysidle.vectorstudio",
+    "files": ["main.cjs", "vectorstudio.svg", "app/**"],
+    "asar": false,
+    "artifactName": "VectorStudio-${version}-x86_64.${ext}",
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Graphics",
+      "icon": "build/icon.png",
+      "executableName": "vectorstudio",
+      "desktop": { "entry": { "StartupWMClass": "vectorstudio" } }
+    }
+  }
+}

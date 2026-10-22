@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=VectorStudio
+Comment=Vector design editor with Bézier pen and SVG/PNG export
+Exec=vectorstudio
+Icon=vectorstudio
+Terminal=false
+Type=Application
+Categories=Graphics;VectorGraphics;2DGraphics;
+StartupWMClass=vectorstudio
+Keywords=vector;bezier;canvas;drawing;illustration;svg;
+X-Wayland-App=true

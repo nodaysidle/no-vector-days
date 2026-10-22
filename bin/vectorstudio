@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# VectorStudio launcher (Electron). Chromium picks native Wayland automatically under Hyprland.
+APP_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+exec "${VECTORSTUDIO_ELECTRON:-electron43}" "${APP_DIR}/main.cjs" "$@"

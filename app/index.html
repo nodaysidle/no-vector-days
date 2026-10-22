@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VectorStudio</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-select" viewBox="0 0 20 20"><path d="M5.5 3.5v12.2l3.3-3.2 2.2 4.9 1.9-.8-2.2-4.9h4.6z" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-node" viewBox="0 0 20 20"><path d="M5.5 3.5v12.2l3.3-3.2 2.2 4.9 1.9-.8-2.2-4.9h4.6z"/></symbol>
+      <symbol id="i-pen" viewBox="0 0 20 20"><path d="M10 2.5 15.5 11 10 17.5 4.5 11Z M10 2.5v7"/><circle cx="10" cy="11" r="1.4"/></symbol>
+      <symbol id="i-rect" viewBox="0 0 20 20"><rect x="3.5" y="5.5" width="13" height="9"/></symbol>
+      <symbol id="i-circle" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.5"/></symbol>
+      <symbol id="i-triangle" viewBox="0 0 20 20"><path d="M10 4 17 16H3Z"/></symbol>
+      <symbol id="i-star" viewBox="0 0 20 20"><polygon points="10.0,3.8 11.8,8.4 16.7,8.6 12.9,11.7 14.1,16.5 10.0,13.8 5.9,16.5 7.1,11.7 3.3,8.6 8.2,8.4"/></symbol>
+      <symbol id="i-line" viewBox="0 0 20 20"><path d="M4 16 16 4"/></symbol>
+      <symbol id="i-arrow" viewBox="0 0 20 20"><path d="M4 16 16 4M9 4h7v7"/></symbol>
+      <symbol id="i-text" viewBox="0 0 20 20"><path d="M4.5 5h11M10 5v11M8 16h4"/></symbol>
+      <symbol id="i-path" viewBox="0 0 20 20"><path d="M3.5 15c3-9 9-1 13-10"/></symbol>
+      <symbol id="i-undo" viewBox="0 0 20 20"><path d="M7 4.5 3.5 8 7 11.5M4 8h8a4 4 0 0 1 0 8h-2"/></symbol>
+      <symbol id="i-redo" viewBox="0 0 20 20"><path d="M13 4.5 16.5 8 13 11.5M16 8H8a4 4 0 0 0 0 8h2"/></symbol>
+      <symbol id="i-align-left" viewBox="0 0 20 20"><path d="M3.5 3v14"/><rect x="6" y="5" width="10" height="3.5"/><rect x="6" y="11.5" width="6" height="3.5"/></symbol>
+      <symbol id="i-align-center" viewBox="0 0 20 20"><path d="M10 3v14"/><rect x="5" y="5" width="10" height="3.5"/><rect x="7" y="11.5" width="6" height="3.5"/></symbol>
+      <symbol id="i-align-right" viewBox="0 0 20 20"><path d="M16.5 3v14"/><rect x="4" y="5" width="10" height="3.5"/><rect x="8" y="11.5" width="6" height="3.5"/></symbol>
+      <symbol id="i-align-top" viewBox="0 0 20 20"><path d="M3 3.5h14"/><rect x="5" y="6" width="3.5" height="10"/><rect x="11.5" y="6" width="3.5" height="6"/></symbol>
+      <symbol id="i-align-middle" viewBox="0 0 20 20"><path d="M3 10h14"/><rect x="5" y="5" width="3.5" height="10"/><rect x="11.5" y="7" width="3.5" height="6"/></symbol>
+      <symbol id="i-align-bottom" viewBox="0 0 20 20"><path d="M3 16.5h14"/><rect x="5" y="4" width="3.5" height="10"/><rect x="11.5" y="8" width="3.5" height="6"/></symbol>
+      <symbol id="i-minus" viewBox="0 0 20 20"><path d="M5 10h10"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 20 20"><path d="M5 10h10M10 5v10"/></symbol>
+    </defs>
+  </svg>
+
+  <header class="topbar">
+    <span class="app-name">VectorStudio</span>
+    <div class="group">
+      <button class="btn" id="btn-new" title="New document">New</button>
+      <button class="btn" id="btn-open" title="Open a .json design (Ctrl+O)">Open…</button>
+      <button class="btn" id="btn-save" title="Save as .json (Ctrl+S)">Save…</button>
+      <input type="file" id="file-open" accept=".json,application/json" hidden>
+    </div>
+    <div class="group">
+      <button class="icon-btn" id="btn-undo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><svg class="icon"><use href="#i-undo"/></svg></button>
+      <button class="icon-btn" id="btn-redo" title="Redo (Ctrl+Y)" aria-label="Redo" disabled><svg class="icon"><use href="#i-redo"/></svg></button>
+    </div>
+    <span class="autosave" id="autosave-status" aria-live="polite"></span>
+    <div class="spacer"></div>
+    <div class="group">
+      <button class="btn" id="btn-export-svg">Export SVG</button>
+      <button class="btn btn-primary" id="btn-export-png">Export PNG</button>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <nav class="toolbar" aria-label="Tools">
+      <button class="tool" data-tool="SELECT" title="Select (V)" aria-label="Select"><svg class="icon"><use href="#i-select"/></svg></button>
+      <button class="tool" data-tool="NODE_EDIT" title="Edit points (A)" aria-label="Edit points"><svg class="icon"><use href="#i-node"/></svg></button>
+      <button class="tool" data-tool="PEN" title="Pen (P)" aria-label="Pen"><svg class="icon"><use href="#i-pen"/></svg></button>
+      <div class="sep"></div>
+      <button class="tool" data-tool="RECT" title="Rectangle (R)" aria-label="Rectangle"><svg class="icon"><use href="#i-rect"/></svg></button>
+      <button class="tool" data-tool="CIRCLE" title="Ellipse (O)" aria-label="Ellipse"><svg class="icon"><use href="#i-circle"/></svg></button>
+      <button class="tool" data-tool="TRIANGLE" title="Triangle" aria-label="Triangle"><svg class="icon"><use href="#i-triangle"/></svg></button>
+      <button class="tool" data-tool="STAR" title="Star" aria-label="Star"><svg class="icon"><use href="#i-star"/></svg></button>
+      <button class="tool" data-tool="LINE" title="Line (L)" aria-label="Line"><svg class="icon"><use href="#i-line"/></svg></button>
+      <button class="tool" data-tool="ARROW" title="Arrow" aria-label="Arrow"><svg class="icon"><use href="#i-arrow"/></svg></button>
+      <button class="tool" data-tool="TEXT" title="Text (T)" aria-label="Text"><svg class="icon"><use href="#i-text"/></svg></button>
+    </nav>
+
+    <aside class="panel layers-panel" aria-label="Layers">
+      <h2 class="panel-title">Layers</h2>
+      <div class="layers" id="layers"></div>
+    </aside>
+
+    <main class="viewport">
+      <canvas id="vector-canvas"></canvas>
+      <canvas id="gl-canvas"></canvas>
+    </main>
+
+    <aside class="panel props-panel" aria-label="Properties">
+      <!-- Shown when nothing is selected -->
+      <section id="page-props">
+        <h2 class="panel-title">Page</h2>
+        <div class="field">
+          <label for="page-size">Size</label>
+          <select id="page-size">
+            <option value="1920x1080">1920 × 1080 (16:9)</option>
+            <option value="1200x800">1200 × 800</option>
+            <option value="1080x1080">1080 × 1080 (1:1)</option>
+            <option value="1080x1920">1080 × 1920 (9:16)</option>
+            <option value="800x1200">800 × 1200 (2:3)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="page-bg">Background</label>
+          <div class="color-row"><input type="color" id="page-bg"><span class="hex" id="page-bg-hex"></span></div>
+        </div>
+        <div class="field">
+          <label for="page-effect">Preview effect</label>
+          <select id="page-effect">
+            <option value="none">None</option>
+            <option value="bloom">Bloom</option>
+            <option value="cyberpunk">Chromatic aberration</option>
+            <option value="paper">Film grain</option>
+            <option value="vignette">Vignette</option>
+          </select>
+          <p class="note" id="effect-note">Screen preview only. Exports are not affected.</p>
+        </div>
+      </section>
+
+      <!-- Shown when something is selected -->
+      <section id="element-props" hidden>
+        <h2 class="panel-title" id="element-title"></h2>
+        <div class="grid2">
+          <div class="field"><label for="prop-x">X</label><input type="number" id="prop-x" step="1"></div>
+          <div class="field"><label for="prop-y">Y</label><input type="number" id="prop-y" step="1"></div>
+          <div class="field"><label for="prop-w">W</label><input type="number" id="prop-w" min="1" step="1"></div>
+          <div class="field"><label for="prop-h">H</label><input type="number" id="prop-h" min="1" step="1"></div>
+          <div class="field"><label for="prop-rot">Rotation °</label><input type="number" id="prop-rot" step="1"></div>
+          <div class="field" id="field-radius"><label for="prop-radius">Corner radius</label><input type="number" id="prop-radius" min="0" step="1"></div>
+          <div class="field" id="field-font"><label for="prop-font">Font size</label><input type="number" id="prop-font" min="4" step="1"></div>
+        </div>
+
+        <div class="field" id="field-fill">
+          <label for="prop-fill">Fill</label>
+          <div class="color-row"><input type="color" id="prop-fill"><span class="hex" id="prop-fill-hex"></span></div>
+        </div>
+        <div class="field">
+          <label for="prop-stroke">Stroke</label>
+          <div class="color-row">
+            <input type="color" id="prop-stroke"><span class="hex" id="prop-stroke-hex"></span>
+            <input type="number" id="prop-stroke-w" min="0" max="100" step="1" aria-label="Stroke width" title="Stroke width">
+          </div>
+        </div>
+        <div class="field">
+          <label for="prop-opacity">Opacity</label>
+          <div class="range-row"><input type="range" id="prop-opacity" min="0" max="100" step="1"><output id="prop-opacity-out"></output></div>
+        </div>
+
+        <div class="field">
+          <span class="label">Align to page</span>
+          <div class="btn-row">
+            <button class="icon-btn" data-align="left" title="Align left" aria-label="Align left"><svg class="icon"><use href="#i-align-left"/></svg></button>
+            <button class="icon-btn" data-align="center" title="Align horizontal centres" aria-label="Align horizontal centres"><svg class="icon"><use href="#i-align-center"/></svg></button>
+            <button class="icon-btn" data-align="right" title="Align right" aria-label="Align right"><svg class="icon"><use href="#i-align-right"/></svg></button>
+            <button class="icon-btn" data-align="top" title="Align top" aria-label="Align top"><svg class="icon"><use href="#i-align-top"/></svg></button>
+            <button class="icon-btn" data-align="middle" title="Align vertical centres" aria-label="Align vertical centres"><svg class="icon"><use href="#i-align-middle"/></svg></button>
+            <button class="icon-btn" data-align="bottom" title="Align bottom" aria-label="Align bottom"><svg class="icon"><use href="#i-align-bottom"/></svg></button>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="label">Arrange</span>
+          <div class="grid2 tight">
+            <button class="btn" id="btn-forward">Forward</button>
+            <button class="btn" id="btn-backward">Backward</button>
+            <button class="btn" id="btn-front">To front</button>
+            <button class="btn" id="btn-back">To back</button>
+          </div>
+        </div>
+
+        <div class="grid2 tight">
+          <button class="btn" id="btn-duplicate" title="Ctrl+D">Duplicate</button>
+          <button class="btn btn-danger" id="btn-delete" title="Delete">Delete</button>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <footer class="statusbar">
+    <span class="hint" id="hint"></span>
+    <div class="zoom">
+      <button class="icon-btn small" id="btn-zoom-out" title="Zoom out" aria-label="Zoom out"><svg class="icon"><use href="#i-minus"/></svg></button>
+      <span class="zoom-label" id="zoom-label">100%</span>
+      <button class="icon-btn small" id="btn-zoom-in" title="Zoom in" aria-label="Zoom in"><svg class="icon"><use href="#i-plus"/></svg></button>
+      <button class="btn small" id="btn-fit" title="Fit page (Ctrl+0)">Fit</button>
+    </div>
+  </footer>
+
+  <script type="module">
+    import { CanvasEngine } from './src/engine.js';
+    import { sceneToSVG } from './src/svg-export.js';
+
+    const $ = (id) => document.getElementById(id);
+    const vectorCanvas = $('vector-canvas');
+    const engine = new CanvasEngine(vectorCanvas, $('gl-canvas'));
+    window.__engine = engine; // exposed for desktop smoke and keystroke tests
+    engine.setShaderPreset('none');
+
+    const TYPE_NAMES = { rect: 'Rectangle', circle: 'Ellipse', triangle: 'Triangle', star: 'Star', line: 'Line', arrow: 'Arrow', text: 'Text', path: 'Path' };
+    const TOOL_HINTS = {
+      SELECT: 'Drag to move · Shift+click to add to selection · Space+drag or scroll to pan · Ctrl+scroll to zoom · Double-click text to edit',
+      NODE_EDIT: 'Drag points and handles to reshape a path. Esc to finish.',
+      PEN: 'Click to add points, drag to curve. Click the first point to close. Enter to finish, Esc to stop.'
+    };
+
+    // ── Autosave ────────────────────────────────────────────────
+    const STORAGE_KEY = 'vectorstudio.document';
+    let lastSaved = null;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) { engine.scene.fromJSON(saved); lastSaved = saved; }
+    } catch (err) {
+      console.warn(`[vectorstudio] autosave could not be restored: ${err.message}`);
+    }
+    function autosave() {
+      const doc = engine.scene.toJSON();
+      if (doc === lastSaved) return;
+      try {
+        localStorage.setItem(STORAGE_KEY, doc);
+        lastSaved = doc;
+        $('autosave-status').textContent = 'Saved locally';
+      } catch (err) {
+        $('autosave-status').textContent = 'Autosave failed';
+        console.warn(`[vectorstudio] autosave failed: ${err.message}`);
+      }
+    }
+    // shortcut: polls instead of hooking every mutation; fine for scenes of a few thousand elements.
+    setInterval(autosave, 1500);
+    window.addEventListener('beforeunload', autosave);
+    setTimeout(() => engine.fitToScreen(), 0);
+
+    // ── File actions ────────────────────────────────────────────
+    function download(href, name) {
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = name;
+      a.click();
+    }
+    $('btn-new').onclick = () => {
+      if (engine.scene.elements.length && !confirm('Start a new document? The current page will be cleared. Use Save… first if you want to keep it.')) return;
+      engine.loadJSON(JSON.stringify({ artboard: { width: 1200, height: 800, background: '#ffffff', title: 'Page 1' }, elements: [] }));
+    };
+    $('btn-save').onclick = () => download(URL.createObjectURL(new Blob([engine.exportJSON()], { type: 'application/json' })), 'design.json');
+    $('btn-open').onclick = () => $('file-open').click();
+    $('file-open').onchange = async (e) => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      try {
+        engine.loadJSON(await file.text());
+      } catch (err) {
+        alert(`Could not open ${file.name}: ${err.message}`);
+      }
+    };
+    $('btn-export-png').onclick = () => download(engine.exportPNG(), 'design.png');
+    $('btn-export-svg').onclick = () => download(URL.createObjectURL(new Blob([sceneToSVG(engine.scene)], { type: 'image/svg+xml' })), 'design.svg');
+
+    window.addEventListener('keydown', (e) => {
+      if (!(e.ctrlKey || e.metaKey) || engine._inlineEditor) return;
+      const key = e.key.toLowerCase();
+      if (key === 's') { e.preventDefault(); $('btn-save').click(); }
+      if (key === 'o') { e.preventDefault(); $('btn-open').click(); }
+    });
+
+    // ── Tools, history, zoom ────────────────────────────────────
+    document.querySelectorAll('.tool').forEach(btn => btn.onclick = () => engine.setTool(btn.dataset.tool));
+    $('btn-undo').onclick = () => engine.undo();
+    $('btn-redo').onclick = () => engine.redo();
+    const zoomBy = (f) => {
+      engine.camera.zoomAt(f, vectorCanvas.clientWidth / 2, vectorCanvas.clientHeight / 2);
+      engine.notifyState();
+      engine.requestRender();
+    };
+    $('btn-zoom-in').onclick = () => zoomBy(1.2);
+    $('btn-zoom-out').onclick = () => zoomBy(1 / 1.2);
+    $('btn-fit').onclick = () => engine.fitToScreen();
+
+    // ── Page properties ─────────────────────────────────────────
+    $('page-size').onchange = (e) => {
+      const [width, height] = e.target.value.split('x').map(Number);
+      engine.scene.setArtboard({ width, height });
+      engine.fitToScreen();
+    };
+    $('page-bg').oninput = (e) => {
+      engine.scene.setArtboard({ background: e.target.value });
+      $('page-bg-hex').textContent = e.target.value;
+      engine.requestRender();
+    };
+    $('page-effect').onchange = (e) => engine.setShaderPreset(e.target.value);
+
+    // ── Element properties ──────────────────────────────────────
+    const selected = () => engine.scene.getSelectedElements();
+    // Live-applies on 'input'; the 'change' that ends the gesture becomes one undo step.
+    function bindEdit(input, apply) {
+      let commit = null;
+      input.addEventListener('input', () => {
+        const value = input.type === 'number' || input.type === 'range' ? parseFloat(input.value) : input.value;
+        if (Number.isNaN(value) || !selected().length) return;
+        commit ??= engine.beginEdit();
+        for (const el of selected()) apply(el, value);
+        engine.requestRender();
+      });
+      input.addEventListener('change', () => {
+        commit?.();
+        commit = null;
+        syncPanels();
+      });
+    }
+    bindEdit($('prop-x'), (el, v) => engine.moveElementTo(el, v, el.y));
+    bindEdit($('prop-y'), (el, v) => engine.moveElementTo(el, el.x, v));
+    bindEdit($('prop-w'), (el, v) => { if (el.type !== 'path') el.width = Math.max(1, v); });
+    bindEdit($('prop-h'), (el, v) => { if (el.type !== 'path') el.height = Math.max(1, v); });
+    bindEdit($('prop-rot'), (el, v) => { if (el.type !== 'path') el.rotation = (v * Math.PI) / 180; });
+    bindEdit($('prop-radius'), (el, v) => { if (el.type === 'rect') el.radius = Math.max(0, v); });
+    bindEdit($('prop-font'), (el, v) => { if (el.type === 'text') el.fontSize = Math.max(4, v); });
+    bindEdit($('prop-fill'), (el, v) => { el.fill = v; });
+    bindEdit($('prop-stroke'), (el, v) => { el.stroke = v; });
+    bindEdit($('prop-stroke-w'), (el, v) => { el.strokeWidth = Math.max(0, v); });
+    bindEdit($('prop-opacity'), (el, v) => { el.opacity = Math.min(1, Math.max(0, v / 100)); });
+
+    document.querySelectorAll('[data-align]').forEach(btn => btn.onclick = () => engine.alignSelected(btn.dataset.align));
+    $('btn-forward').onclick = () => engine.bringForward();
+    $('btn-backward').onclick = () => engine.sendBackward();
+    $('btn-front').onclick = () => engine.bringToFront();
+    $('btn-back').onclick = () => engine.sendToBack();
+    $('btn-duplicate').onclick = () => engine.duplicateSelected();
+    $('btn-delete').onclick = () => engine.deleteSelected();
+
+    // Colour inputs only accept #rrggbb; anything else (e.g. 'transparent') shows as black but stays untouched until edited.
+    const asHex = (c) => (/^#[0-9a-f]{6}$/i.test(c || '') ? c : '#000000');
+    function setValue(input, value) {
+      if (document.activeElement !== input) input.value = value;
+    }
+
+    function syncPanels() {
+      const els = selected();
+      const el = els[0];
+      $('page-props').hidden = !!el;
+      $('element-props').hidden = !el;
+
+      const { width, height, background } = engine.scene.artboard;
+      setValue($('page-size'), `${width}x${height}`);
+      setValue($('page-bg'), asHex(background));
+      $('page-bg-hex').textContent = background;
+      if (!el) return;
+
+      const isPath = el.type === 'path';
+      const isLine = el.type === 'line' || el.type === 'arrow';
+      $('element-title').textContent = els.length > 1 ? `${els.length} layers` : TYPE_NAMES[el.type] || el.type;
+      setValue($('prop-x'), Math.round(el.x));
+      setValue($('prop-y'), Math.round(el.y));
+      setValue($('prop-w'), Math.round(el.width));
+      setValue($('prop-h'), Math.round(el.height));
+      setValue($('prop-rot'), Math.round(((el.rotation || 0) * 180) / Math.PI));
+      for (const id of ['prop-w', 'prop-h', 'prop-rot']) $(id).disabled = isPath;
+      $('field-radius').hidden = el.type !== 'rect';
+      setValue($('prop-radius'), el.radius ?? 0);
+      $('field-font').hidden = el.type !== 'text';
+      setValue($('prop-font'), el.fontSize ?? 20);
+      $('field-fill').hidden = isLine;
+      setValue($('prop-fill'), asHex(el.fill));
+      $('prop-fill-hex').textContent = el.fill || 'none';
+      setValue($('prop-stroke'), asHex(el.stroke));
+      $('prop-stroke-hex').textContent = el.stroke || 'none';
+      setValue($('prop-stroke-w'), el.strokeWidth ?? 0);
+      const opacity = Math.round((el.opacity ?? 1) * 100);
+      setValue($('prop-opacity'), opacity);
+      $('prop-opacity-out').textContent = `${opacity}%`;
+    }
+    $('prop-opacity').addEventListener('input', (e) => { $('prop-opacity-out').textContent = `${e.target.value}%`; });
+    $('prop-fill').addEventListener('input', (e) => { $('prop-fill-hex').textContent = e.target.value; });
+    $('prop-stroke').addEventListener('input', (e) => { $('prop-stroke-hex').textContent = e.target.value; });
+
+    // ── Layers ──────────────────────────────────────────────────
+    function layerName(el) {
+      if (el.type === 'text') return String(el.text || 'Text').split('\n')[0].slice(0, 32) || 'Text';
+      return TYPE_NAMES[el.type] || el.type;
+    }
+    function syncLayers() {
+      const list = $('layers');
+      list.replaceChildren();
+      const elements = [...engine.scene.elements].reverse();
+      if (!elements.length) {
+        const empty = document.createElement('p');
+        empty.className = 'empty';
+        empty.textContent = 'No layers yet. Pick a shape on the left (or press R), then click the page.';
+        list.append(empty);
+        return;
+      }
+      for (const el of elements) {
+        const row = document.createElement('button');
+        row.className = 'layer' + (engine.scene.selectedIds.has(el.id) ? ' selected' : '');
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        icon.setAttribute('class', 'icon');
+        const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', `#i-${el.type in TYPE_NAMES ? el.type : 'rect'}`);
+        icon.append(use);
+        const name = document.createElement('span');
+        name.textContent = layerName(el); // user text: never innerHTML
+        row.append(icon, name);
+        row.onclick = (e) => {
+          engine.scene.select(el.id, e.shiftKey);
+          engine.notifyState();
+          engine.requestRender();
+        };
+        list.append(row);
+      }
+    }
+
+    // ── Engine state → UI ───────────────────────────────────────
+    engine.onStateChange = (state) => {
+      $('btn-undo').disabled = !state.canUndo;
+      $('btn-redo').disabled = !state.canRedo;
+      $('zoom-label').textContent = `${state.zoom}%`;
+      document.querySelectorAll('.tool').forEach(btn => {
+        const active = btn.dataset.tool === state.activeTool;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-pressed', active);
+      });
+      const shape = TYPE_NAMES[{ RECT: 'rect', CIRCLE: 'circle', TRIANGLE: 'triangle', STAR: 'star', LINE: 'line', ARROW: 'arrow', TEXT: 'text' }[state.activeTool]];
+      $('hint').textContent = shape
+        ? `Click the page to place a ${shape.toLowerCase()}. Esc to cancel.`
+        : !engine.scene.elements.length && state.activeTool === 'SELECT'
+          ? 'Empty page. Pick a shape on the left, or press R and click the page.'
+          : TOOL_HINTS[state.activeTool] || '';
+      syncPanels();
+      syncLayers();
+    };
+    engine.notifyState();
+  </script>
+</body>
+</html>
