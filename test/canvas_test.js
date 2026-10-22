@@ -6,6 +6,7 @@ import { History } from '../app/src/history.js';
 import { BezierMath } from '../app/src/bezier.js';
 import { VectorPath } from '../app/src/path.js';
 import { sceneToSVG } from '../app/src/svg-export.js';
+import { parsePathData, parseTransform, arcToCubics, subpathToAnchors, apply } from '../app/src/svg-import.js';
 
 console.log('--- Running Canvas Core & Vector Bézier Engine Tests ---');
 
@@ -153,5 +154,45 @@ assert.strictEqual((exported.match(/<polygon/g) || []).length, 2, 'star and arro
 assert.ok(exported.includes('fill="none"') && exported.includes('opacity="0.5"'), 'open path has no fill and keeps opacity');
 assert.strictEqual(new VectorPath(svgPath.toJSON()).opacity, 0.5, 'path opacity survives JSON round-trip');
 console.log('✓ SVG export verified.');
+
+// SVG import helpers (the DOM walk itself is covered by the desktop smoke test)
+console.log('Testing SVG import...');
+const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg}: ${a} vs ${b}`);
+const sq = parsePathData('M10 10h20v20H10z m5 5 l1 1');
+assert.strictEqual(sq.length, 2, 'z then m starts a second subpath');
+assert.strictEqual(sq[0].closed, true);
+assert.deepStrictEqual(sq[1].start, { x: 15, y: 15 }, 'relative m after z is relative to the subpath start');
+assert.deepStrictEqual(parsePathData('M0 0 1 1 2 0')[0].segs.map(s => s.p), [{ x: 1, y: 1 }, { x: 2, y: 0 }], 'extra M pairs are line-tos');
+assert.deepStrictEqual(parsePathData('M1.5.5-2-3')[0].start, { x: 1.5, y: 0.5 }, 'compact numbers');
+const arc = parsePathData('M0 0a10 10 0 00 20 0')[0];
+assert.strictEqual(arc.segs.length, 2, 'half circle with compact flags becomes two cubics');
+near(arc.segs[1].p.x, 20, 'arc ends at its endpoint');
+const half = arcToCubics({ x: 0, y: 0 }, 10, 10, 0, 0, 1, { x: 20, y: 0 });
+near(half[0].p.x, 10, 'sweep=1 arc passes x=10');
+near(half[0].p.y, -10, 'sweep=1 arc goes up in SVG coordinates');
+const qd = parsePathData('M0 0Q10 10 20 0T40 0')[0].segs;
+near(qd[0].c1.x, 20 / 3, 'quadratic converts to cubic');
+near(qd[1].c1.y, -20 / 3, 'T reflects the previous control point');
+const m = parseTransform('translate(10 5) rotate(90) scale(2)');
+const pt = apply(m, { x: 1, y: 0 });
+near(pt.x, 10, 'transforms compose left to right');
+near(pt.y, 7, 'transforms compose left to right');
+const closedAnchors = subpathToAnchors(parsePathData('M0 0C5 -5 15 -5 20 0L10 10L0 0Z')[0], [1, 0, 0, 1, 0, 0]);
+assert.strictEqual(closedAnchors.length, 3, 'closing point on the start is merged');
+assert.throws(() => parsePathData('M0 0 L x'), /Bad path data/);
+const square = (x, y, size) => [[x, y], [x + size, y], [x + size, y + size], [x, y + size]].map(([px, py]) => ({ x: px, y: py }));
+const ring = new VectorPath({ anchors: square(0, 0, 100), closed: true, fill: '#000000', subpaths: [{ anchors: square(25, 25, 50), closed: true }], fillRule: 'evenodd' });
+assert.strictEqual(ring.hitTest(10, 50), true, 'compound path: the band is a hit');
+assert.strictEqual(ring.hitTest(50, 50), false, 'compound path: the hole is not a hit');
+assert.strictEqual((ring.toSVGPath().match(/M/g) || []).length, 2, 'compound path exports both outlines');
+ring.translate(10, 5);
+assert.deepStrictEqual([ring.subpaths[0].anchors[0].x, ring.subpaths[0].anchors[0].y, ring.x], [35, 30, 10], 'translate moves every outline and the bounds');
+const ringCopy = new VectorPath(JSON.parse(JSON.stringify(ring.toJSON())));
+assert.strictEqual(ringCopy.subpaths.length, 1, 'subpaths survive a JSON round trip');
+assert.strictEqual(ringCopy.fillRule, 'evenodd', 'fill rule survives a JSON round trip');
+const ringScene = new SceneGraph();
+ringScene.addElement(ring);
+assert.ok(sceneToSVG(ringScene).includes('fill-rule="evenodd"'), 'fill rule is exported');
+console.log('✓ SVG import helpers verified.');
 
 console.log('\nAll Canvas Core & Vector Bézier Engine tests passed successfully!\n');

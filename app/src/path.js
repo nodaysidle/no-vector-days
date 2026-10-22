@@ -8,13 +8,11 @@ export class VectorPath {
   constructor(options = {}) {
     this.id = options.id || 'path_' + Math.random().toString(36).slice(2, 9);
     this.type = 'path';
-    this.anchors = options.anchors ? options.anchors.map(a => ({
-      x: a.x,
-      y: a.y,
-      handleIn: a.handleIn ? { ...a.handleIn } : null,
-      handleOut: a.handleOut ? { ...a.handleOut } : null
-    })) : [];
+    this.anchors = (options.anchors || []).map(copyAnchor);
     this.closed = Boolean(options.closed);
+    // Extra outlines of a compound path (holes, separate pieces); node editing works on the main outline.
+    this.subpaths = (options.subpaths || []).map(sp => ({ anchors: sp.anchors.map(copyAnchor), closed: Boolean(sp.closed) }));
+    if (options.fillRule === 'evenodd') this.fillRule = 'evenodd';
     this.fill = options.fill || 'transparent';
     this.stroke = options.stroke || '#1f2328';
     this.strokeWidth = options.strokeWidth ?? 2;
@@ -35,8 +33,26 @@ export class VectorPath {
     this.recomputeBounds();
   }
 
+  /** The main outline followed by any subpaths, as { anchors, closed }. */
+  outlines() {
+    return [{ anchors: this.anchors, closed: this.closed }, ...this.subpaths];
+  }
+
+  translate(dx, dy) {
+    for (const { anchors } of this.outlines()) {
+      for (const a of anchors) {
+        a.x += dx;
+        a.y += dy;
+        if (a.handleIn) { a.handleIn.x += dx; a.handleIn.y += dy; }
+        if (a.handleOut) { a.handleOut.x += dx; a.handleOut.y += dy; }
+      }
+    }
+    this.recomputeBounds();
+  }
+
   recomputeBounds() {
-    if (this.anchors.length === 0) {
+    const all = this.outlines().flatMap(o => o.anchors);
+    if (all.length === 0) {
       this.x = 0;
       this.y = 0;
       this.width = 0;
@@ -49,8 +65,7 @@ export class VectorPath {
     let maxX = -Infinity;
     let maxY = -Infinity;
 
-    for (let i = 0; i < this.anchors.length; i++) {
-      const a = this.anchors[i];
+    for (const a of all) {
       minX = Math.min(minX, a.x);
       minY = Math.min(minY, a.y);
       maxX = Math.max(maxX, a.x);
@@ -80,27 +95,7 @@ export class VectorPath {
    * Generates standard SVG Path string 'd'.
    */
   toSVGPath() {
-    if (this.anchors.length === 0) return '';
-    let d = `M ${this.anchors[0].x.toFixed(2)} ${this.anchors[0].y.toFixed(2)}`;
-
-    for (let i = 1; i < this.anchors.length; i++) {
-      const prev = this.anchors[i - 1];
-      const curr = this.anchors[i];
-      const cp1 = prev.handleOut || { x: prev.x, y: prev.y };
-      const cp2 = curr.handleIn || { x: curr.x, y: curr.y };
-
-      d += ` C ${cp1.x.toFixed(2)} ${cp1.y.toFixed(2)}, ${cp2.x.toFixed(2)} ${cp2.y.toFixed(2)}, ${curr.x.toFixed(2)} ${curr.y.toFixed(2)}`;
-    }
-
-    if (this.closed && this.anchors.length > 2) {
-      const prev = this.anchors[this.anchors.length - 1];
-      const curr = this.anchors[0];
-      const cp1 = prev.handleOut || { x: prev.x, y: prev.y };
-      const cp2 = curr.handleIn || { x: curr.x, y: curr.y };
-      d += ` C ${cp1.x.toFixed(2)} ${cp1.y.toFixed(2)}, ${cp2.x.toFixed(2)} ${cp2.y.toFixed(2)}, ${curr.x.toFixed(2)} ${curr.y.toFixed(2)} Z`;
-    }
-
-    return d;
+    return this.outlines().map(o => outlineToSVG(o.anchors, o.closed)).filter(Boolean).join(' ');
   }
 
   /**
@@ -108,17 +103,16 @@ export class VectorPath {
    */
   hitTest(worldX, worldY, tolerance = 8) {
     if (this.anchors.length < 2) return false;
+    const reach = Math.max(tolerance, (this.strokeWidth || 2) / 2 + 4);
 
-    const count = this.closed ? this.anchors.length : this.anchors.length - 1;
-    for (let i = 0; i < count; i++) {
-      const p0 = this.anchors[i];
-      const p1 = this.anchors[(i + 1) % this.anchors.length];
-      const cp1 = p0.handleOut || { x: p0.x, y: p0.y };
-      const cp2 = p1.handleIn || { x: p1.x, y: p1.y };
-
-      const dist = BezierMath.distToCubicBezier(worldX, worldY, p0, cp1, cp2, p1);
-      if (dist <= Math.max(tolerance, (this.strokeWidth || 2) / 2 + 4)) {
-        return true;
+    for (const { anchors, closed } of this.outlines()) {
+      const count = closed ? anchors.length : anchors.length - 1;
+      for (let i = 0; i < count; i++) {
+        const p0 = anchors[i];
+        const p1 = anchors[(i + 1) % anchors.length];
+        const cp1 = p0.handleOut || { x: p0.x, y: p0.y };
+        const cp2 = p1.handleIn || { x: p1.x, y: p1.y };
+        if (BezierMath.distToCubicBezier(worldX, worldY, p0, cp1, cp2, p1) <= reach) return true;
       }
     }
 
@@ -130,13 +124,16 @@ export class VectorPath {
     return false;
   }
 
+  /** Even-odd test over every outline's anchor polygon, so holes are not hits. */
   pointInPolygon(px, py) {
     let inside = false;
-    for (let i = 0, j = this.anchors.length - 1; i < this.anchors.length; j = i++) {
-      const xi = this.anchors[i].x, yi = this.anchors[i].y;
-      const xj = this.anchors[j].x, yj = this.anchors[j].y;
-      const intersect = ((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
-      if (intersect) inside = !inside;
+    for (const { anchors } of this.outlines()) {
+      for (let i = 0, j = anchors.length - 1; i < anchors.length; j = i++) {
+        const xi = anchors[i].x, yi = anchors[i].y;
+        const xj = anchors[j].x, yj = anchors[j].y;
+        const intersect = ((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+      }
     }
     return inside;
   }
@@ -147,6 +144,8 @@ export class VectorPath {
       type: 'path',
       anchors: this.anchors,
       closed: this.closed,
+      ...(this.subpaths.length ? { subpaths: this.subpaths } : {}),
+      ...(this.fillRule ? { fillRule: this.fillRule } : {}),
       fill: this.fill,
       stroke: this.stroke,
       strokeWidth: this.strokeWidth,
@@ -158,4 +157,18 @@ export class VectorPath {
       height: this.height
     };
   }
+}
+
+function copyAnchor(a) {
+  return { x: a.x, y: a.y, handleIn: a.handleIn ? { ...a.handleIn } : null, handleOut: a.handleOut ? { ...a.handleOut } : null };
+}
+
+function outlineToSVG(anchors, closed) {
+  if (anchors.length === 0) return '';
+  const pt = (p) => `${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+  const curve = (prev, curr) => ` C ${pt(prev.handleOut || prev)}, ${pt(curr.handleIn || curr)}, ${pt(curr)}`;
+  let d = `M ${pt(anchors[0])}`;
+  for (let i = 1; i < anchors.length; i++) d += curve(anchors[i - 1], anchors[i]);
+  if (closed && anchors.length > 2) d += curve(anchors[anchors.length - 1], anchors[0]) + ' Z';
+  return d;
 }

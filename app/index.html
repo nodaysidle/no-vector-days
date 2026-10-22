@@ -37,10 +37,10 @@
     <span class="app-name">VectorStudio</span>
     <div class="group">
       <button class="btn" id="btn-new" title="New document">New</button>
-      <button class="btn" id="btn-open" title="Open a .json design (Ctrl+O)">Open…</button>
+      <button class="btn" id="btn-open" title="Open a .json design or an SVG (Ctrl+O)">Open…</button>
       <button class="btn" id="btn-save" title="Save (Ctrl+S)">Save</button>
       <button class="btn" id="btn-save-as" title="Save as a new .json file (Ctrl+Shift+S)">Save as…</button>
-      <input type="file" id="file-open" accept=".json,application/json" hidden>
+      <input type="file" id="file-open" accept=".json,.svg,application/json,image/svg+xml" hidden>
     </div>
     <div class="group">
       <button class="icon-btn" id="btn-undo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><svg class="icon"><use href="#i-undo"/></svg></button>
@@ -182,6 +182,7 @@
   <script type="module">
     import { CanvasEngine } from './src/engine.js';
     import { sceneToSVG } from './src/svg-export.js';
+    import { importSVG } from './src/svg-import.js';
 
     const $ = (id) => document.getElementById(id);
     const vectorCanvas = $('vector-canvas');
@@ -254,6 +255,22 @@
         alert(`Could not save: ${err.message}`);
       }
     }
+    // SVGs are imported into a new, unsaved design so Save never writes JSON over the source file.
+    function openDocument(name, text, path) {
+      if (!/\.svg$/i.test(name) && !/^\s*(<\?xml|<svg|<!--|<!DOCTYPE svg)/i.test(text)) {
+        engine.loadJSON(text);
+        setFile(path);
+        return;
+      }
+      const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+      if (doc.getElementsByTagName('parsererror').length) throw new Error('the SVG is not valid XML');
+      const { artboard, elements, skipped } = importSVG(doc);
+      engine.loadJSON(JSON.stringify({ artboard, elements }));
+      setFile(null);
+      document.title = `${name} (imported) - VectorStudio`;
+      const missed = Object.entries(skipped).map(([tag, n]) => `${n} × <${tag}>`).join(', ');
+      if (missed) alert(`Imported ${name}. Not supported and left out: ${missed}.`);
+    }
     $('btn-save').onclick = () => save(false);
     $('btn-save-as').onclick = () => save(true);
     $('btn-open').onclick = async () => {
@@ -261,8 +278,7 @@
       try {
         const file = await desktop.openFile();
         if (!file) return;
-        engine.loadJSON(file.text);
-        setFile(file.path);
+        openDocument(file.path.split('/').pop(), file.text, file.path);
       } catch (err) {
         alert(`Could not open the file: ${err.message}`);
       }
@@ -272,7 +288,7 @@
       e.target.value = '';
       if (!file) return;
       try {
-        engine.loadJSON(await file.text());
+        openDocument(file.name, await file.text(), null);
       } catch (err) {
         alert(`Could not open ${file.name}: ${err.message}`);
       }

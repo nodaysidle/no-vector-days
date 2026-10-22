@@ -120,13 +120,7 @@ export class SceneGraph {
     if (original instanceof VectorPath) {
       const clone = new VectorPath(original.toJSON());
       clone.id = 'path_' + Math.random().toString(36).slice(2, 9);
-      for (const a of clone.anchors) {
-        a.x += offset;
-        a.y += offset;
-        if (a.handleIn) { a.handleIn.x += offset; a.handleIn.y += offset; }
-        if (a.handleOut) { a.handleOut.x += offset; a.handleOut.y += offset; }
-      }
-      clone.recomputeBounds();
+      clone.translate(offset, offset);
       this.addElement(clone);
       this.select(clone.id);
       return clone;

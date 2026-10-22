@@ -219,30 +219,24 @@ export class CanvasRenderer {
     }
 
     ctx.beginPath();
-    const first = el.anchors[0];
-    ctx.moveTo(first.x, first.y);
-
-    for (let i = 1; i < el.anchors.length; i++) {
-      const prev = el.anchors[i - 1];
-      const curr = el.anchors[i];
-      const cp1 = prev.handleOut || { x: prev.x, y: prev.y };
-      const cp2 = curr.handleIn || { x: curr.x, y: curr.y };
-
+    const curve = (prev, curr) => {
+      const cp1 = prev.handleOut || prev;
+      const cp2 = curr.handleIn || curr;
       ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, curr.x, curr.y);
-    }
-
-    if (el.closed && el.anchors.length > 2) {
-      const prev = el.anchors[el.anchors.length - 1];
-      const curr = el.anchors[0];
-      const cp1 = prev.handleOut || { x: prev.x, y: prev.y };
-      const cp2 = curr.handleIn || { x: curr.x, y: curr.y };
-      ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, curr.x, curr.y);
-      ctx.closePath();
+    };
+    for (const { anchors, closed } of el.outlines()) {
+      if (anchors.length === 0) continue;
+      ctx.moveTo(anchors[0].x, anchors[0].y);
+      for (let i = 1; i < anchors.length; i++) curve(anchors[i - 1], anchors[i]);
+      if (closed && anchors.length > 2) {
+        curve(anchors[anchors.length - 1], anchors[0]);
+        ctx.closePath();
+      }
     }
 
     if (el.fill && el.fill !== 'transparent' && el.closed) {
       ctx.fillStyle = el.fill;
-      ctx.fill();
+      ctx.fill(el.fillRule || 'nonzero');
     }
 
     if (el.stroke && el.stroke !== 'transparent') {

@@ -1,9 +1,10 @@
 {
   "name": "vectorstudio",
   "productName": "VectorStudio",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Desktop vector editor for Linux: shapes, Bézier pen, layers, SVG and PNG export",
   "main": "main.cjs",
+  "type": "module",
   "private": true,
   "author": "NODAYSIDLE <nodaysidle@tutanota.de>",
   "license": "MIT",

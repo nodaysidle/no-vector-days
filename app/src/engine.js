@@ -644,15 +644,7 @@ export class CanvasEngine {
   /** Moves an element's top-left to (x, y); paths translate their anchors since their bounds derive from them. */
   moveElementTo(el, x, y) {
     if (el.type === 'path' && el.anchors) {
-      const deltaX = x - el.x;
-      const deltaY = y - el.y;
-      for (const a of el.anchors) {
-        a.x += deltaX;
-        a.y += deltaY;
-        if (a.handleIn) { a.handleIn.x += deltaX; a.handleIn.y += deltaY; }
-        if (a.handleOut) { a.handleOut.x += deltaX; a.handleOut.y += deltaY; }
-      }
-      el.recomputeBounds();
+      el.translate(x - el.x, y - el.y);
     } else {
       el.x = x;
       el.y = y;

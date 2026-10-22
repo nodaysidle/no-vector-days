@@ -19,7 +19,7 @@ const IS_TEST = process.argv.includes('--test');
 const IS_PROBE = process.env.VECTORSTUDIO_PROBE === '1';
 
 function findAssetDir() {
-  // Bundled assets first (repo checkout or packaged app), so a stale install never shadows them.
+  // Assets next to this file first (repo checkout, install.sh copy or AppImage), so another copy never shadows them.
   const candidates = [
     process.env.VECTORSTUDIO_ASSETS,
     path.join(__dirname, 'app'),
@@ -32,7 +32,7 @@ function findAssetDir() {
 }
 
 // Exercises the real engine: add/undo, drag-resize through pointer events, shift-rotate snapping, Ctrl+A.
-const SMOKE_TEST_JS = `(function () {
+const SMOKE_TEST_JS = `(async function () {
   const E = window.__engine;
   const before = E.scene.elements.length;
   E.addElement('rect', {});
@@ -93,8 +93,45 @@ const SMOKE_TEST_JS = `(function () {
 
   const desktopBridge = typeof window.vectorstudio?.saveFile === 'function';
 
-  const ok = added && undone && resized && resizeUndone && cleaned && rotSnapped && toolKept && multiDrag && multiDragUndone && multiDup && deleteOrderKept && desktopBridge;
-  return { ok, desktopBridge, added, undone, resized, resizeUndone, cleaned, rotSnapped, toolKept, multiDrag, multiDragUndone, multiDup, deleteOrderKept, webgl: !!E.webglPipeline };
+  // SVG import: our own export round-trips, and a foreign file maps groups, transforms, <use>, classes and gradients.
+  const { SceneGraph } = await import('./src/scene.js');
+  const { sceneToSVG } = await import('./src/svg-export.js');
+  const { importSVG } = await import('./src/svg-import.js');
+  const parse = (text) => importSVG(new DOMParser().parseFromString(text, 'image/svg+xml'));
+  const close = (x, y) => Math.abs(x - y) < 0.01;
+  const src = new SceneGraph();
+  src.setArtboard({ width: 800, height: 600, background: '#fafafa' });
+  src.addElement({ type: 'rect', x: -100, y: -50, width: 200, height: 100, rotation: Math.PI / 6, radius: 12, fill: '#3d8bfd' });
+  src.addElement({ type: 'circle', x: 50, y: 60, width: 80, height: 40, fill: '#f2c94c', stroke: '#1f2328', strokeWidth: 3 });
+  src.addElement({ type: 'text', x: -300, y: -250, text: 'Hello\\nWorld', fontSize: 30, fill: '#1f2328' });
+  const back = parse(sceneToSVG(src));
+  const [br, bc, bt] = back.elements;
+  const svgRoundTrip = back.artboard.width === 800 && back.artboard.background === '#fafafa' && back.elements.length === 3 &&
+    br.type === 'rect' && close(br.x, -100) && close(br.width, 200) && close(br.rotation, Math.PI / 6) && close(br.radius, 12) &&
+    bc.type === 'circle' && close(bc.x, 50) && close(bc.height, 40) && bc.strokeWidth === 3 &&
+    bt.type === 'text' && bt.text === 'Hello\\nWorld' && close(bt.y, -250) && close(bt.fontSize, 30);
+  const foreign = parse('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 100" width="400">' +
+    '<style>.st0{fill:#ff0000}</style>' +
+    '<defs><linearGradient id="g"><stop offset="0" stop-color="#00ff00"/></linearGradient><path id="tri" d="M0 0L10 0L5 8Z"/></defs>' +
+    '<g transform="translate(50 50)"><rect class="st0" x="-10" y="-10" width="20" height="20"/></g>' +
+    '<circle cx="10" cy="10" r="5" fill="url(#g)"/>' +
+    '<use xlink:href="#tri" x="80" y="80" fill="blue"/>' +
+    '<path d="M0 90 Q 10 80 20 90" stroke="black" fill="none"/>' +
+    '<rect width="10" height="10" transform="skewX(20)"/>' +
+    '<image href="x.png" width="10" height="10"/>' +
+    '<g style="display:none"><rect width="5" height="5"/></g></svg>');
+  const f = foreign.elements;
+  const svgForeign = foreign.artboard.width === 100 && f.length === 5 && foreign.skipped.image === 1 &&
+    f[0].type === 'rect' && close(f[0].x, -10) && f[0].fill === '#ff0000' &&
+    f[1].type === 'circle' && f[1].fill === '#00ff00' && close(f[1].x, -45) &&
+    f[2].type === 'path' && f[2].fill === 'blue' && f[2].closed && close(f[2].anchors[0].x, 30) &&
+    f[3].type === 'path' && !f[3].closed && f[3].fill === 'transparent' && f[3].stroke === 'black' &&
+    f[4].type === 'path' && f[4].anchors.length === 4;
+  E.loadJSON(JSON.stringify(foreign));
+  const svgLoaded = E.scene.elements.length === 5;
+
+  const ok = added && undone && resized && resizeUndone && cleaned && rotSnapped && toolKept && multiDrag && multiDragUndone && multiDup && deleteOrderKept && desktopBridge && svgRoundTrip && svgForeign && svgLoaded;
+  return { ok, desktopBridge, svgRoundTrip, svgForeign, svgLoaded, added, undone, resized, resizeUndone, cleaned, rotSnapped, toolKept, multiDrag, multiDragUndone, multiDup, deleteOrderKept, webgl: !!E.webglPipeline };
 })()`;
 
 // Seeds a known scene and reports "probe:<layers>:<tool>:<selected>" in the title after each key release.
@@ -131,6 +168,19 @@ async function waitForEngine(win) {
   return false;
 }
 
+// The compositor may resize a new window just after it maps; pointer checks need a settled canvas and camera.
+async function waitForStableLayout(win) {
+  const probe = `(() => { const r = document.getElementById('vector-canvas').getBoundingClientRect(); return [r.width, r.height, window.__engine.camera.zoom].join(); })()`;
+  let last = null;
+  let stable = 0;
+  for (let i = 0; i < 40 && stable < 3; i++) {
+    const now = await win.webContents.executeJavaScript(probe);
+    stable = now === last ? stable + 1 : 0;
+    last = now;
+    await sleep(100);
+  }
+}
+
 function hyprWindow() {
   try {
     const clients = JSON.parse(execFileSync('hyprctl', ['clients', '-j'], { encoding: 'utf8', timeout: 1500 }));
@@ -142,6 +192,7 @@ function hyprWindow() {
 
 async function runSmokeTest(win, errors) {
   const engineReady = await waitForEngine(win);
+  if (engineReady) await waitForStableLayout(win);
   const result = engineReady
     ? await win.webContents.executeJavaScript(SMOKE_TEST_JS).catch(err => ({ ok: false, reason: err.message }))
     : { ok: false, reason: 'engine missing' };
@@ -168,7 +219,10 @@ const JSON_FILTERS = [{ name: 'VectorStudio design', extensions: ['json'] }];
 function registerFileHandlers(win) {
   const granted = new Set();
   ipcMain.handle('file:open', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog(win, { filters: JSON_FILTERS, properties: ['openFile'] });
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      filters: [{ name: 'Designs and SVG', extensions: ['json', 'svg'] }, ...JSON_FILTERS, { name: 'SVG image', extensions: ['svg'] }],
+      properties: ['openFile']
+    });
     if (canceled || !filePaths.length) return null;
     granted.add(filePaths[0]);
     return { path: filePaths[0], text: await fs.promises.readFile(filePaths[0], 'utf8') };

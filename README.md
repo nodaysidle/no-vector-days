@@ -8,7 +8,7 @@
 
 <p align="center">
   <strong>Desktop vector editor for Linux.</strong><br>
-  Shapes, text and a Bézier pen on a single page, with layers, undo, and clean SVG and PNG export.
+  Shapes, text and a Bézier pen on a single page, with layers, undo, SVG import, and clean SVG and PNG export.
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/nodaysidle/no-vector-days/releases/download/v0.1.1/VectorStudio-0.1.1-x86_64.AppImage"><strong>Download Linux AppImage (v0.1.1)</strong></a>
+  <a href="https://github.com/nodaysidle/no-vector-days/releases/download/v0.2.0/VectorStudio-0.2.0-x86_64.AppImage"><strong>Download Linux AppImage (v0.2.0)</strong></a>
   ·
   <a href="https://github.com/nodaysidle/no-vector-days/releases">All Releases</a>
 </p>
@@ -51,6 +51,8 @@ It started as a WebKitGTK app that ran at 12 fps on an Intel Arc laptop GPU. The
 - **Properties:** position, size, rotation, corner radius, fill, stroke, opacity, alignment to the page, and stacking order. Every change can be undone.
 - **Export:** SVG that keeps rotation, corner radius and text, and PNG at 2× of the page only, without selection handles.
 - **Files:** autosave on your machine, plus Open, Save and Save as for `.json` design files. In the desktop app Save writes back to the file you opened.
+- **SVG import:** Open also takes `.svg` files and turns them into editable layers: rectangles, circles and ellipses stay shapes; paths (including arcs and curves), polygons and lines become editable paths, with holes kept; text, groups, transforms, `<use>` and simple CSS classes are applied. An imported SVG opens as a new design, so Save never writes over the original file.
+  Not carried over: gradients and patterns (each becomes its first colour), images, filters, masks, clipping paths and fonts other than the system UI font.
 - **Page presets:** 1920 × 1080, 1200 × 800, 1080 × 1080, 1080 × 1920 and 800 × 1200, with any background colour.
 - **Preview effects:** bloom, chromatic aberration, film grain and vignette, drawn with WebGL. They are only for the screen and never change exports.
 
@@ -66,15 +68,15 @@ It started as a WebKitGTK app that ran at 12 fps on an Intel Arc laptop GPU. The
 | `Ctrl+0` | Fit the page |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
 | `Ctrl+D` / `Delete` | Duplicate / delete the selection |
-| `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+O` | Save / save as / open a design file |
+| `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+O` | Save / save as / open a design or an SVG |
 
 ## Install
 
 ### AppImage
 
 ```bash
-chmod +x VectorStudio-0.1.1-x86_64.AppImage
-./VectorStudio-0.1.1-x86_64.AppImage
+chmod +x VectorStudio-0.2.0-x86_64.AppImage
+./VectorStudio-0.2.0-x86_64.AppImage
 ```
 
 AppImages need FUSE 2 (`fuse2` on Arch). Without it, run with `APPIMAGE_EXTRACT_AND_RUN=1`.
@@ -85,7 +87,7 @@ AppImages need FUSE 2 (`fuse2` on Arch). Without it, run with `APPIMAGE_EXTRACT_
 git clone https://github.com/nodaysidle/no-vector-days.git
 cd no-vector-days
 sudo pacman -S electron43
-./install.sh        # adds `vectorstudio` to ~/.local/bin and the app menu
+./install.sh        # copies the app to ~/.local/share/vectorstudio, adds `vectorstudio` to ~/.local/bin and the app menu
 ```
 
 ## Development
@@ -93,7 +95,7 @@ sudo pacman -S electron43
 ```bash
 npm install
 npm start               # run with the Electron from npm
-npm test                # engine tests: camera, scene, hit testing, history, Bézier, SVG export
+npm test                # engine tests: camera, scene, hit testing, history, Bézier, SVG export and import
 npm run test:desktop    # Hyprland: native Wayland window, smoke test, real keystrokes via wtype
 npm run dist            # build dist/VectorStudio-<version>-x86_64.AppImage
 ```

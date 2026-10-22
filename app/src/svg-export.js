@@ -32,6 +32,7 @@ function elementToSVG(el) {
     return `<path${attrs({
       d: el.toSVGPath(),
       fill: filled ? el.fill : 'none',
+      'fill-rule': el.fillRule,
       stroke: el.stroke && el.stroke !== 'transparent' ? el.stroke : undefined,
       'stroke-width': el.strokeWidth || 2,
       'stroke-linecap': 'round',
