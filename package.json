@@ -1,7 +1,7 @@
 {
   "name": "vectorstudio",
   "productName": "VectorStudio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Desktop vector editor for Linux: shapes, Bézier pen, layers, SVG and PNG export",
   "main": "main.cjs",
   "private": true,
@@ -20,7 +20,7 @@
   },
   "build": {
     "appId": "com.nodaysidle.vectorstudio",
-    "files": ["main.cjs", "vectorstudio.svg", "app/**"],
+    "files": ["main.cjs", "preload.cjs", "vectorstudio.svg", "app/**"],
     "asar": false,
     "artifactName": "VectorStudio-${version}-x86_64.${ext}",
     "linux": {

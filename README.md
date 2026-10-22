@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/nodaysidle/no-vector-days/releases/download/v0.1.0/VectorStudio-0.1.0-x86_64.AppImage"><strong>Download Linux AppImage (v0.1.0)</strong></a>
+  <a href="https://github.com/nodaysidle/no-vector-days/releases/download/v0.1.1/VectorStudio-0.1.1-x86_64.AppImage"><strong>Download Linux AppImage (v0.1.1)</strong></a>
   ·
   <a href="https://github.com/nodaysidle/no-vector-days/releases">All Releases</a>
 </p>
@@ -47,10 +47,10 @@ It started as a WebKitGTK app that ran at 12 fps on an Intel Arc laptop GPU. The
 
 - **Shapes:** rectangle, ellipse, triangle, star, line, arrow and text. Pick a tool and click the page to place it.
 - **Bézier pen:** click for corners, drag for curves, and edit any point or handle afterwards with the point tool.
-- **Layers:** a list of every object; click to select, Shift+click to add to the selection.
+- **Layers:** a list of every object; click to select, Shift+click or drag a box to select several, then move, duplicate or delete them together.
 - **Properties:** position, size, rotation, corner radius, fill, stroke, opacity, alignment to the page, and stacking order. Every change can be undone.
 - **Export:** SVG that keeps rotation, corner radius and text, and PNG at 2× of the page only, without selection handles.
-- **Files:** autosave on your machine, plus Open and Save for `.json` design files.
+- **Files:** autosave on your machine, plus Open, Save and Save as for `.json` design files. In the desktop app Save writes back to the file you opened.
 - **Page presets:** 1920 × 1080, 1200 × 800, 1080 × 1080, 1080 × 1920 and 800 × 1200, with any background colour.
 - **Preview effects:** bloom, chromatic aberration, film grain and vignette, drawn with WebGL. They are only for the screen and never change exports.
 
@@ -66,15 +66,15 @@ It started as a WebKitGTK app that ran at 12 fps on an Intel Arc laptop GPU. The
 | `Ctrl+0` | Fit the page |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
 | `Ctrl+D` / `Delete` | Duplicate / delete the selection |
-| `Ctrl+S` / `Ctrl+O` | Save / open a design file |
+| `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+O` | Save / save as / open a design file |
 
 ## Install
 
 ### AppImage
 
 ```bash
-chmod +x VectorStudio-0.1.0-x86_64.AppImage
-./VectorStudio-0.1.0-x86_64.AppImage
+chmod +x VectorStudio-0.1.1-x86_64.AppImage
+./VectorStudio-0.1.1-x86_64.AppImage
 ```
 
 AppImages need FUSE 2 (`fuse2` on Arch). Without it, run with `APPIMAGE_EXTRACT_AND_RUN=1`.
@@ -103,7 +103,7 @@ npm run dist            # build dist/VectorStudio-<version>-x86_64.AppImage
 | Path | What it is |
 |---|---|
 | `app/` | The editor: `index.html`, `style.css` and the engine in `app/src/` (no framework, no build step) |
-| `main.cjs` | Electron shell: serves `app/` over a private `app://` scheme, sandboxed, no navigation or popups |
+| `main.cjs`, `preload.cjs` | Electron shell: serves `app/` over a private `app://` scheme, sandboxed, no navigation or popups; native Open/Save dialogs |
 | `bin/vectorstudio`, `install.sh` | Launcher and installer for the system Electron |
 | `test/` | Engine tests (Node) and Hyprland desktop tests (Python) |
 

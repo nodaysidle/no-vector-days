@@ -38,7 +38,8 @@
     <div class="group">
       <button class="btn" id="btn-new" title="New document">New</button>
       <button class="btn" id="btn-open" title="Open a .json design (Ctrl+O)">Open…</button>
-      <button class="btn" id="btn-save" title="Save as .json (Ctrl+S)">Save…</button>
+      <button class="btn" id="btn-save" title="Save (Ctrl+S)">Save</button>
+      <button class="btn" id="btn-save-as" title="Save as a new .json file (Ctrl+Shift+S)">Save as…</button>
       <input type="file" id="file-open" accept=".json,application/json" hidden>
     </div>
     <div class="group">
@@ -229,11 +230,43 @@
       a.click();
     }
     $('btn-new').onclick = () => {
-      if (engine.scene.elements.length && !confirm('Start a new document? The current page will be cleared. Use Save… first if you want to keep it.')) return;
+      if (engine.scene.elements.length && !confirm('Start a new document? The current page will be cleared. Save first if you want to keep it.')) return;
       engine.loadJSON(JSON.stringify({ artboard: { width: 1200, height: 800, background: '#ffffff', title: 'Page 1' }, elements: [] }));
+      setFile(null);
     };
-    $('btn-save').onclick = () => download(URL.createObjectURL(new Blob([engine.exportJSON()], { type: 'application/json' })), 'design.json');
-    $('btn-open').onclick = () => $('file-open').click();
+
+    // The desktop app exposes native dialogs (preload.cjs); a plain browser falls back to downloads.
+    const desktop = window.vectorstudio;
+    let filePath = null;
+    function setFile(p) {
+      filePath = p;
+      document.title = p ? `${p.split('/').pop()} - VectorStudio` : 'VectorStudio';
+    }
+    async function save(asNew) {
+      const doc = engine.exportJSON();
+      if (!desktop) return download(URL.createObjectURL(new Blob([doc], { type: 'application/json' })), 'design.json');
+      try {
+        const saved = await desktop.saveFile(doc, asNew ? null : filePath);
+        if (!saved) return;
+        setFile(saved);
+        $('autosave-status').textContent = `Saved to ${saved.split('/').pop()}`;
+      } catch (err) {
+        alert(`Could not save: ${err.message}`);
+      }
+    }
+    $('btn-save').onclick = () => save(false);
+    $('btn-save-as').onclick = () => save(true);
+    $('btn-open').onclick = async () => {
+      if (!desktop) return $('file-open').click();
+      try {
+        const file = await desktop.openFile();
+        if (!file) return;
+        engine.loadJSON(file.text);
+        setFile(file.path);
+      } catch (err) {
+        alert(`Could not open the file: ${err.message}`);
+      }
+    };
     $('file-open').onchange = async (e) => {
       const file = e.target.files[0];
       e.target.value = '';
@@ -250,7 +283,7 @@
     window.addEventListener('keydown', (e) => {
       if (!(e.ctrlKey || e.metaKey) || engine._inlineEditor) return;
       const key = e.key.toLowerCase();
-      if (key === 's') { e.preventDefault(); $('btn-save').click(); }
+      if (key === 's') { e.preventDefault(); save(e.shiftKey); }
       if (key === 'o') { e.preventDefault(); $('btn-open').click(); }
     });
 

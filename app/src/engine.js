@@ -383,8 +383,11 @@ export class CanvasEngine {
     // Hit test scene objects
     const hit = HitTester.hitTestScene(world.x, world.y, this.scene.elements);
     if (hit) {
-      this.scene.select(hit.id, e.shiftKey);
+      // Clicking an already-selected layer keeps the selection so the whole group drags.
+      if (e.shiftKey || !this.scene.selectedIds.has(hit.id)) this.scene.select(hit.id, e.shiftKey);
       this.mode = 'DRAGGING';
+      this.dragLead = hit;
+      this.dragOrigins = this.scene.getSelectedElements().map(el => ({ el, x: el.x, y: el.y }));
       this.initialTransformState = { x: hit.x, y: hit.y };
       this.canvas.style.cursor = 'move';
       if (hit.type === 'path') {
@@ -527,19 +530,14 @@ export class CanvasEngine {
     }
 
     if (this.mode === 'DRAGGING') {
-      const selected = this.scene.getSelectedElements()[0];
-      if (selected) {
-        let targetX = this.initialTransformState.x + dx;
-        let targetY = this.initialTransformState.y + dy;
-
-        // Snap to page and neighbour edges
-        const snap = this.computeSnap(selected, targetX, targetY);
+      if (this.dragLead) {
+        // Snap the layer under the cursor to page and neighbour edges, then move the rest of the selection by the same offset.
+        const start = this.initialTransformState;
+        const snap = this.computeSnap(this.dragLead, start.x + dx, start.y + dy);
         this.smartGuides = snap.guides;
-        targetX = snap.x;
-        targetY = snap.y;
-
-        this.moveElementTo(selected, targetX, targetY);
-
+        for (const o of this.dragOrigins) {
+          this.moveElementTo(o.el, o.x + snap.x - start.x, o.y + snap.y - start.y);
+        }
         this.requestRender();
       }
       return;
@@ -689,7 +687,7 @@ export class CanvasEngine {
     ];
 
     for (const el of this.scene.elements) {
-      if (el.id === selected.id) continue;
+      if (this.scene.selectedIds.has(el.id)) continue; // selected layers move together
       xTargets.push({ val: el.x, desc: 'el_left' });
       xTargets.push({ val: el.x + el.width / 2, desc: 'el_center' });
       xTargets.push({ val: el.x + el.width, desc: 'el_right' });
@@ -777,15 +775,14 @@ export class CanvasEngine {
     }
 
     const selected = this.scene.getSelectedElements()[0];
-    if (this.mode === 'DRAGGING' && selected && this.initialTransformState) {
-      const oldX = this.initialTransformState.x;
-      const oldY = this.initialTransformState.y;
-      const newX = selected.x;
-      const newY = selected.y;
-      if (oldX !== newX || oldY !== newY) {
+    if (this.mode === 'DRAGGING' && this.dragOrigins) {
+      const moves = this.dragOrigins
+        .map(o => ({ el: o.el, from: { x: o.x, y: o.y }, to: { x: o.el.x, y: o.el.y } }))
+        .filter(m => m.from.x !== m.to.x || m.from.y !== m.to.y);
+      if (moves.length) {
         this.history.push({
-          undo: () => { this.moveElementTo(selected, oldX, oldY); this.requestRender(); },
-          redo: () => { this.moveElementTo(selected, newX, newY); this.requestRender(); }
+          undo: () => { for (const m of moves) this.moveElementTo(m.el, m.from.x, m.from.y); this.requestRender(); },
+          redo: () => { for (const m of moves) this.moveElementTo(m.el, m.to.x, m.to.y); this.requestRender(); }
         });
       }
     }
@@ -805,6 +802,8 @@ export class CanvasEngine {
     this.activeHandle = null;
     this.marqueeBox = null;
     this.initialTransformState = null;
+    this.dragLead = null;
+    this.dragOrigins = null;
     this.notifyState();
     this.requestRender();
   }
@@ -883,24 +882,27 @@ export class CanvasEngine {
   }
 
   duplicateSelected() {
-    const selected = this.scene.getSelectedElements()[0];
-    if (selected) {
-      const clone = this.scene.duplicate(selected.id, 30);
-      if (clone) {
-        this.history.push({
-          undo: () => { this.scene.removeElement(clone.id); this.requestRender(); },
-          redo: () => { this.scene.addElement(clone); this.scene.select(clone.id); this.requestRender(); }
-        });
-        this.notifyState();
-        this.requestRender();
-      }
-    }
+    const selected = this.scene.getSelectedElements();
+    if (selected.length === 0) return;
+    const clones = selected.map(el => this.scene.duplicate(el.id, 30)).filter(Boolean);
+    const selectClones = () => {
+      this.scene.clearSelection();
+      for (const c of clones) this.scene.select(c.id, true);
+    };
+    selectClones();
+    this.history.push({
+      undo: () => { for (const c of clones) this.scene.removeElement(c.id); this.requestRender(); },
+      redo: () => { for (const c of clones) this.scene.addElement(c); selectClones(); this.requestRender(); }
+    });
+    this.notifyState();
+    this.requestRender();
   }
 
   deleteSelected() {
     const selected = this.scene.getSelectedElements();
     if (selected.length === 0) return;
 
+    const order = [...this.scene.elements];
     const removed = [];
     for (const el of selected) {
       this.scene.removeElement(el.id);
@@ -909,7 +911,8 @@ export class CanvasEngine {
 
     this.history.push({
       undo: () => {
-        for (const el of removed) this.scene.addElement(el);
+        // Restore the full stack so deleted layers return to their old depth, not the top.
+        this.scene.elements = [...order];
         this.requestRender();
       },
       redo: () => {

@@ -7,7 +7,7 @@
  *   vectorstudio --test     smoke test: boot, exercise the engine, verify the Hyprland window, exit 0/1
  *   VECTORSTUDIO_PROBE=1    keystroke-test mode: seeds 5 layers and mirrors engine state into the window title
  */
-const { app, BrowserWindow, protocol, net } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, protocol, net } = require('electron');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -68,8 +68,33 @@ const SMOKE_TEST_JS = `(function () {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true }));
   const toolKept = E.activeTool === 'SELECT';
 
-  const ok = added && undone && resized && resizeUndone && cleaned && rotSnapped && toolKept;
-  return { ok, added, undone, resized, resizeUndone, cleaned, rotSnapped, toolKept, webgl: !!E.webglPipeline };
+  // Multi-selection: dragging either layer moves both, duplicate copies both, undo restores depth.
+  const base = E.scene.elements.length;
+  const a = E.addElement('rect', { x: -300, y: 200, width: 60, height: 60 });
+  const b = E.addElement('rect', { x: -150, y: 200, width: 60, height: 60 });
+  const c = E.addElement('rect', { x: 0, y: 200, width: 60, height: 60 });
+  E.scene.select(a.id); E.scene.select(c.id, true);
+  const grabC = E.camera.worldToScreen(30, 230);
+  fire('pointerdown', canvas, grabC.x, grabC.y);
+  fire('pointermove', window, grabC.x + 37 * E.camera.zoom, grabC.y + 41 * E.camera.zoom);
+  fire('pointerup', window, grabC.x + 37 * E.camera.zoom, grabC.y + 41 * E.camera.zoom);
+  const multiDrag = Math.round(a.x) === -263 && Math.round(c.x) === 37 && Math.round(a.y) === 241 && b.x === -150;
+  E.undo();
+  const multiDragUndone = a.x === -300 && c.x === 0;
+  E.duplicateSelected();
+  const multiDup = E.scene.elements.length === base + 5 && E.scene.selectedIds.size === 2;
+  E.undo();
+  E.scene.select(a.id); E.scene.select(b.id, true);
+  const orderBefore = E.scene.elements.map(e => e.id).join();
+  E.deleteSelected();
+  E.undo();
+  const deleteOrderKept = E.scene.elements.map(e => e.id).join() === orderBefore;
+  E.undo(); E.undo(); E.undo();
+
+  const desktopBridge = typeof window.vectorstudio?.saveFile === 'function';
+
+  const ok = added && undone && resized && resizeUndone && cleaned && rotSnapped && toolKept && multiDrag && multiDragUndone && multiDup && deleteOrderKept && desktopBridge;
+  return { ok, desktopBridge, added, undone, resized, resizeUndone, cleaned, rotSnapped, toolKept, multiDrag, multiDragUndone, multiDup, deleteOrderKept, webgl: !!E.webglPipeline };
 })()`;
 
 // Seeds a known scene and reports "probe:<layers>:<tool>:<selected>" in the title after each key release.
@@ -137,6 +162,31 @@ async function runSmokeTest(win, errors) {
   app.exit(passed ? 0 : 1);
 }
 
+const JSON_FILTERS = [{ name: 'VectorStudio design', extensions: ['json'] }];
+
+// The renderer may only write back to files the user picked in one of these dialogs.
+function registerFileHandlers(win) {
+  const granted = new Set();
+  ipcMain.handle('file:open', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, { filters: JSON_FILTERS, properties: ['openFile'] });
+    if (canceled || !filePaths.length) return null;
+    granted.add(filePaths[0]);
+    return { path: filePaths[0], text: await fs.promises.readFile(filePaths[0], 'utf8') };
+  });
+  ipcMain.handle('file:save', async (_e, text, filePath) => {
+    if (typeof text !== 'string') throw new Error('Document must be text');
+    let target = granted.has(filePath) ? filePath : null;
+    if (!target) {
+      const { canceled, filePath: chosen } = await dialog.showSaveDialog(win, { defaultPath: 'design.json', filters: JSON_FILTERS });
+      if (canceled || !chosen) return null;
+      target = chosen;
+      granted.add(target);
+    }
+    await fs.promises.writeFile(target, text, 'utf8');
+    return target;
+  });
+}
+
 app.whenReady().then(() => {
   const assets = findAssetDir();
   protocol.handle('app', (request) => {
@@ -152,8 +202,9 @@ app.whenReady().then(() => {
     backgroundColor: '#1b1c1f',
     autoHideMenuBar: true,
     icon: path.join(__dirname, 'vectorstudio.svg'),
-    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false }
+    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, preload: path.join(__dirname, 'preload.cjs') }
   });
+  registerFileHandlers(win);
   win.setMenu(null);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
