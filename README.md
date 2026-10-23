@@ -101,6 +101,7 @@ npm run dist            # build dist/VectorStudio-<version>-x86_64.AppImage
 ```
 
 `vectorstudio --test` starts the app, runs an in-page smoke test and exits 0 or 1.
+It waits for the window size to settle first (`waitForStableLayout` in `main.cjs`), because Hyprland resizes the window after it loads and early clicks land in the wrong place; keep that wait in any new desktop check. Run it ten times before calling a change stable: `for i in $(seq 10); do ./bin/vectorstudio --test 2>&1 | grep -o 'TEST [A-Z]*'; done`. To smoke-test a built AppImage on a machine without FUSE 2, use `APPIMAGE_EXTRACT_AND_RUN=1 ./dist/VectorStudio-<version>-x86_64.AppImage --test`.
 
 | Path | What it is |
 |---|---|
